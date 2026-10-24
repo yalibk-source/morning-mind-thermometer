@@ -128,7 +128,7 @@
             <p class="text-base text-slate-500 mt-1 font-bold">
               오늘 마음을 나눈 친구: 
               <span class="text-3xl font-black text-amber-500 mx-1">{{ getTodayCheckinsCount() }}</span> 
-              명 / 우리 반 전체 {{ students.filter(st => !st.archived).length }}명
+              명 / 우리 반 전체 {{ students.filter(st => !st.archived && !st.deletedAt).length }}명
             </p>
           </div>
         </div>
@@ -152,10 +152,10 @@
         <h3 class="text-xl sm:text-2xl font-black text-slate-800">내 이름을 찾아서 눌러보세요! 👇</h3>
       </div>
 
-      <p v-if="!students.length" class="bg-white rounded-2xl p-6 text-center font-bold">선생님 로그인 → 학생관리에서 우리 반 학생을 먼저 등록해주세요.</p>
+      <p v-if="!students.some(st => !st.archived && !st.deletedAt)" class="bg-white rounded-2xl p-6 text-center font-bold">선생님 로그인 → 학생관리에서 우리 반 학생을 먼저 등록해주세요.</p>
       <!-- 세로형 길쭉한 학생 카드 그리드 (한 줄에 5명 정렬 완료) -->
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-5 gap-4">
-        <div v-for="student in students.filter(st => !st.archived)" :key="student.id" 
+        <div v-for="student in students.filter(st => !st.archived && !st.deletedAt)" :key="student.id" 
              class="relative p-4 rounded-[2rem] border-4 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1.5 flex flex-col items-center justify-between group min-h-[180px] shadow-lg"
              :class="hasSubmittedToday(student.id) ? 'border-amber-300 bg-amber-50/30 opacity-75' : 'border-white hover:border-amber-400'"
              :style="{ backgroundColor: student.customBgColor || '#ffffff' }">
@@ -258,7 +258,10 @@
           <div class="space-y-2">
             <label class="text-xs sm:text-sm font-black text-slate-500">지금 기분을 글자로 적어주세요 (최대 6자)</label>
             <input type="text" v-model="customMoodLabel" placeholder="예: 무척 졸려요, 너무 설레요" maxlength="6"
+                   aria-label="직접 쓰는 기분"
                    class="w-full p-4 border-2 border-slate-200 rounded-2xl text-base font-black outline-none focus:ring-4 focus:ring-amber-300 bg-white text-center">
+            <button @click="toggleSpeechRecognition('mood')" :aria-pressed="isRecording && recordingTarget === 'mood'" class="w-full rounded-2xl px-4 py-3 text-sm font-black text-white shadow" :class="isRecording && recordingTarget === 'mood' ? 'bg-rose-600 animate-recording' : 'bg-slate-800'">{{ isRecording && recordingTarget === 'mood' ? '🛑 듣고 있어요 · 누르면 정지' : '🎙️ 목소리로 기분 쓰기' }}</button>
+            <p class="text-xs text-slate-500">짧게 말한 뒤 글자를 확인해주세요. 최대 6자로 입력됩니다. 음성은 브라우저 제공업체로 전송될 수 있습니다.</p>
           </div>
 
           <!-- 이모티콘 간편 선택 그리드 -->
@@ -396,7 +399,7 @@
 
           <!-- 음성인식(STT) 구동 제어부 -->
           <div class="flex justify-center">
-            <button @click="toggleSpeechRecognition"
+            <button @click="toggleSpeechRecognition('message')" :aria-pressed="isRecording && recordingTarget === 'message'"
                     class="flex items-center space-x-2 px-6 py-3.5 rounded-full text-sm font-black shadow-lg transition-all active:scale-95"
                     :class="isRecording ? 'animate-recording text-white shadow-rose-300' : 'bg-slate-800 hover:bg-slate-700 text-white shadow-slate-300'">
               <span class="text-base">{{ isRecording ? '🛑' : '🎙️' }}</span>
@@ -676,7 +679,7 @@
 
         </div>
 
-        <div class="bg-white rounded-2xl p-5"><h3 class="font-bold">오늘 아직 기록하지 않은 친구 ({{ students.filter(st => !st.archived && !hasSubmittedToday(st.id)).length }}명)</h3><p class="mt-2">{{ students.filter(st => !st.archived && !hasSubmittedToday(st.id)).map(st => st.name).join(', ') || '모두 기록했어요.' }}</p></div>
+        <div class="bg-white rounded-2xl p-5"><h3 class="font-bold">오늘 아직 기록하지 않은 친구 ({{ students.filter(st => !st.archived && !st.deletedAt && !hasSubmittedToday(st.id)).length }}명)</h3><p class="mt-2">{{ students.filter(st => !st.archived && !st.deletedAt && !hasSubmittedToday(st.id)).map(st => st.name).join(', ') || '모두 기록했어요.' }}</p></div>
         <!-- 감정 분석 지표 및 자체 통계 파트 -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           
@@ -764,13 +767,13 @@
         <!-- 학생 목록 관리 -->
         <div class="space-y-3 pb-4 border-b border-slate-100">
           <div class="flex justify-between items-center">
-            <h3 class="text-xs font-extrabold text-slate-500">전체 학생 명부 (총 {{ students.length }}명)</h3>
+            <h3 class="text-xs font-extrabold text-slate-500">전체 학생 명부 (총 {{ students.filter(st => !st.deletedAt).length }}명)</h3>
             <span class="text-xs text-slate-500">보관한 학생의 과거 기록은 유지됩니다.</span>
           </div>
           
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div v-for="student in students" :key="student.id"
-                 class="p-3.5 border border-slate-100 rounded-2xl hover:border-slate-300 transition-colors flex items-center justify-between">
+            <div v-for="student in students.filter(st => !st.deletedAt)" :key="student.id"
+                 class="p-3.5 border border-slate-100 rounded-2xl hover:border-slate-300 transition-colors flex flex-wrap gap-2 items-center justify-between">
               <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center bg-slate-100" :class="student.color || 'bg-slate-100'">
                   <img v-if="student.photo" :src="student.photo" class="w-full h-full object-cover">
@@ -781,14 +784,16 @@
                   <p class="text-[10px] text-slate-400">고유번호: {{ student.id }}</p>
                 </div>
               </div>
-              <button @click="renameStudent(student)" class="p-2 text-xs font-bold">이름 수정</button><button @click="deleteStudent(student.id)" class="p-2 text-slate-300 hover:text-rose-500 text-xs transition-colors">
+              <button @click="renameStudent(student)" class="p-2 text-xs font-bold">이름 수정</button><button @click="deleteStudent(student.id)" class="p-2 text-slate-600 hover:text-rose-500 text-xs transition-colors">
                 {{ student.archived ? '재적 복귀' : '전출·보관' }}
               </button>
+              <button @click="requestDeleteStudent(student)" :aria-label="student.name + ' 학생 삭제'" class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50">삭제</button>
             </div>
           </div>
         </div>
 
         <section class="bg-slate-50 p-5 rounded-2xl space-y-3"><h3 class="font-bold">백업 및 복원</h3><p class="text-sm">이 브라우저의 사이트 데이터를 지우면 기록도 사라집니다. JSON 백업은 학생 명부·기록·교사 메모를 포함하므로 선생님이 보관해주세요.</p><p class="text-sm">마지막 백업: {{ lastBackup || '아직 없음' }}</p><button @click="backupData" class="p-3 rounded-xl bg-slate-900 text-white">JSON 백업 저장</button><label class="inline-block p-3 rounded-xl border cursor-pointer">JSON 백업 복원<input type="file" accept="application/json,.json" @change="restoreData" class="hidden"></label></section><details class="border border-rose-200 rounded-2xl p-4"><summary class="font-bold text-rose-700">위험 작업</summary><p class="my-3 text-sm">초기화 전 반드시 백업을 저장하세요. 다른 사이트 데이터와 비밀번호는 지우지 않습니다.</p><button @click="resetDemoData" class="p-3 border rounded-lg text-rose-700">명부·기록 전체 초기화</button></details>
+        <details class="rounded-2xl border border-slate-200 p-4"><summary class="font-bold text-sm">🗑️ 삭제한 학생 ({{ students.filter(st => st.deletedAt).length }}명)</summary><p class="my-3 text-xs text-slate-600">삭제한 학생은 명부에서 숨겨집니다. 기존 마음 기록은 보존되며 언제든 복원할 수 있습니다.</p><div v-for="st in students.filter(st => st.deletedAt)" :key="st.id" class="flex items-center justify-between gap-3 border-t py-3"><span class="font-bold text-sm">{{ st.name }}</span><button @click="restoreStudent(st)" :aria-label="st.name + ' 학생 복원'" class="rounded-lg border px-3 py-2 text-sm font-bold">명부로 복원</button></div></details>
         <!-- 선생님 비밀번호 변경 폼 -->
         <div class="bg-amber-50/50 rounded-2xl p-4 border border-amber-200/60 space-y-3 mt-6">
           <div class="flex items-center space-x-2">
@@ -901,7 +906,8 @@
 
     </main>
 
-    <footer class="mt-10 border-t border-amber-200 pt-5 text-center text-sm font-bold text-amber-900">제작자 · 효양고 이은비</footer>
+    <div v-if="pendingDeleteStudent" role="dialog" aria-modal="true" aria-label="학생 삭제 확인" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl space-y-4"><h3 class="font-black text-lg">{{ pendingDeleteStudent.name }} 학생을 삭제할까요?</h3><p class="text-sm text-slate-600">학생 명부에서 숨겨집니다. 기존 마음 기록은 그대로 보존되며 ‘삭제한 학생’에서 복원할 수 있습니다.</p><div class="flex justify-end gap-3"><button @click="pendingDeleteStudent = null" class="rounded-xl border px-4 py-3 font-bold">취소</button><button @click="confirmDeleteStudent" class="rounded-xl bg-rose-700 px-4 py-3 font-bold text-white">학생 삭제</button></div></div></div>
+    <footer aria-label="제작자" class="fixed bottom-3 right-3 z-30 rounded-lg bg-amber-50/95 px-3 py-2 text-right text-xs font-bold text-amber-900 shadow-sm pointer-events-none">제작자 · 효양고 이은비</footer>
   </div>
 
   <script>
@@ -990,6 +996,7 @@
         const students = ref([]);
         const checkins = ref([]);
         const isDemo = ref(false);
+        const pendingDeleteStudent = ref(null);
 
         // 선생님 비밀번호 전용 상태
         const teacherPassword = ref(DEFAULT_PASSWORD);
@@ -1015,6 +1022,7 @@
 
         // 음성 인식 관련 상태
         const isRecording = ref(false);
+        const recordingTarget = ref(null);
         let recognition = null;
 
         // 교사용 인터페이스 탭 컨트롤 ('dashboard' | 'students' | 'records')
@@ -1210,9 +1218,13 @@
         };
 
         // 오늘 참여 학생 수
+        const activeTodayCheckins = () => {
+          clockTick.value;
+          const today=getTodayDateString();
+          return checkins.value.filter(c => c.date === today && students.value.some(st => st.id === c.studentId && !st.deletedAt && !st.archived));
+        };
         const getTodayCheckinsCount = () => {
-          clockTick.value; const today = getTodayDateString();
-          return checkins.value.filter(c => c.date === today).length;
+          return activeTodayCheckins().length;
         };
 
         // 특정 온도 임계점 이하 또는 슬픈 마음일 경우 주의 요망 설정
@@ -1222,8 +1234,7 @@
 
         // 학급 평균 온도 계산
         const getClassAverageScore = () => {
-          clockTick.value; const today = getTodayDateString();
-          const todayCheckins = checkins.value.filter(c => c.date === today);
+          const todayCheckins = activeTodayCheckins();
           if (todayCheckins.length === 0) return 0;
           const sum = todayCheckins.reduce((acc, curr) => acc + curr.score, 0);
           return Math.round(sum / todayCheckins.length);
@@ -1239,6 +1250,7 @@
 
         // 학생 선택 액션
         const selectStudent = (student) => {
+          if (student.deletedAt || student.archived) return;
           if (hasSubmittedToday(student.id)) {
             triggerToast(`${student.name} 친구는 이미 오늘 아침 마음 온도 측정을 완료했어요!`);
             return;
@@ -1258,6 +1270,7 @@
 
         // 위저드 순서 제어
         const nextStep = () => {
+          stopRecognition();
           if (!wizardMood.value) { triggerToast('지금 기분을 하나 골라주세요.'); return; }
           if (wizardStep.value < 3) wizardStep.value++;
         };
@@ -1284,6 +1297,7 @@
         };
 
         const closeCustomMoodForm = () => {
+          stopRecognition();
           showCustomMoodForm.value = false;
         };
 
@@ -1356,7 +1370,7 @@
         };
 
         // 음성 인식 처리 (STT)
-        const initSpeechRecognition = () => {
+        const initSpeechRecognition = (target, studentId) => {
           const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
           if (!SpeechRecognition) {
             return null;
@@ -1367,19 +1381,28 @@
           rec.lang = 'ko-KR';
 
           rec.onstart = () => {
+            if (recognition !== rec) return;
             isRecording.value = true;
           };
 
           rec.onresult = (event) => {
             const resultText = event.results[0][0].transcript;
             if (resultText) {
-              if (!selectedStudent.value || currentMode.value !== 'student' || recentSubmittedCheckin.value || !isRecording.value) return;
-              wizardMessage.value = (wizardMessage.value + " " + resultText).trim().slice(0, 1000);
-              triggerToast("🎙️ 목소리가 성공적으로 인식되었어요!");
+              if (recognition !== rec || selectedStudent.value?.id !== studentId || currentMode.value !== 'student' || recentSubmittedCheckin.value || !isRecording.value) return;
+              if (target === 'mood') {
+                if (wizardStep.value !== 1 || !showCustomMoodForm.value) return;
+                customMoodLabel.value = resultText.trim().slice(0, 6);
+                triggerToast(resultText.trim().length > 6 ? '기분은 처음 6자로 입력했어요. 글자를 확인해주세요.' : '🎙️ 기분을 입력했어요. 글자를 확인해주세요.');
+              } else {
+                if (wizardStep.value !== 3) return;
+                wizardMessage.value = (wizardMessage.value + " " + resultText).trim().slice(0, 1000);
+                triggerToast('🎙️ 한 마디를 입력했어요. 글자를 확인해주세요.');
+              }
             }
           };
 
           rec.onerror = (event) => {
+            if (recognition !== rec) return;
             console.error(event);
             if (event.error === 'not-allowed') {
               triggerToast("❌ 마이크 사용 권한을 확인해 주세요.");
@@ -1390,39 +1413,40 @@
           };
 
           rec.onend = () => {
-            isRecording.value = false;
+            if (recognition !== rec) return;
+            isRecording.value = false; recordingTarget.value = null; recognition = null;
           };
 
           return rec;
         };
 
-        const toggleSpeechRecognition = () => {
-          if (isRecording.value) {
-            stopRecognition();
-          } else {
-            startRecognition();
-          }
+        const toggleSpeechRecognition = (target = 'message') => {
+          if (isRecording.value && recordingTarget.value === target) { stopRecognition(); return; }
+          stopRecognition(); startRecognition(target);
         };
 
-        const startRecognition = () => {
-          if (!recognition) {
-            recognition = initSpeechRecognition();
-          }
+        const startRecognition = (target) => {
+          if (!selectedStudent.value || (target === 'mood' ? wizardStep.value !== 1 || !showCustomMoodForm.value : wizardStep.value !== 3)) return;
+          recognition = initSpeechRecognition(target, selectedStudent.value.id);
           if (!recognition) {
             triggerToast("❌ 음성 인식을 지원하지 않는 브라우저입니다.");
             return;
           }
           try {
+            recordingTarget.value = target; isRecording.value = true;
             recognition.start();
           } catch (e) {
-            console.error(e);
+            stopRecognition(); triggerToast('음성 입력을 시작하지 못했어요. 마이크 권한을 확인하거나 글자로 입력해주세요.');
           }
         };
 
         const stopRecognition = () => {
-          if (recognition) {
+          const active = recognition;
+          recognition = null; isRecording.value = false; recordingTarget.value = null;
+          if (active) {
+            active.onstart = null; active.onresult = null; active.onerror = null; active.onend = null;
             try {
-              recognition.abort();
+              active.abort();
             } catch (e) {
               console.error(e);
             }
@@ -1468,6 +1492,7 @@
         };
 
         const goHome = () => {
+          pendingDeleteStudent.value = null;
           clearTimeout(completionTimer); recentSubmittedCheckin.value = null; wizardMessage.value = ''; wizardMood.value = ''; customMoodLabel.value = ''; showAllMessages.value = false; confirmModal.value.show = false; confirmModal.value.password = '';
           selectedStudent.value = null;
           currentMode.value = 'student';
@@ -1513,8 +1538,7 @@
         };
 
         const getAttentionRequiredStudents = () => {
-          clockTick.value; const today = getTodayDateString();
-          const todayCheckins = checkins.value.filter(c => c.date === today);
+          const todayCheckins = activeTodayCheckins();
           const attentionList = [];
           
           todayCheckins.forEach(c => {
@@ -1540,8 +1564,7 @@
         };
 
         const getMoodStatistics = () => {
-          clockTick.value; const today = getTodayDateString();
-          const todayCheckins = checkins.value.filter(c => c.date === today);
+          const todayCheckins = activeTodayCheckins();
           const totalCount = todayCheckins.length || 1;
 
           const statsMap = {};
@@ -1576,8 +1599,7 @@
         };
 
         const getInsightText = () => {
-          clockTick.value; const today = getTodayDateString();
-          const todayCheckins = checkins.value.filter(c => c.date === today);
+          const todayCheckins = activeTodayCheckins();
           const attentionCount = getAttentionRequiredStudents().length;
           const averageScore = getClassAverageScore();
 
@@ -1752,7 +1774,7 @@
             customBgColor: '#ffffff'
           };
 
-          if (students.value.some(st => !st.archived && st.name === newStudent.name)) { triggerToast('같은 이름이 있어요. 동명이인은 번호 등을 덧붙여 구분해주세요.'); return; }
+          if (students.value.some(st => !st.archived && !st.deletedAt && st.name === newStudent.name)) { triggerToast('같은 이름이 있어요. 동명이인은 번호 등을 덧붙여 구분해주세요.'); return; }
           students.value.push(newStudent);
           if (!saveStudentsToLocal()) { students.value.pop(); return; }
 
@@ -1771,6 +1793,26 @@
           const st = students.value.find(s => s.id === id); if (!st) return;
           st.archived = !st.archived; if (!saveStudentsToLocal()) { st.archived = !st.archived; return; }
           triggerToast(st.archived ? '명부에서 보관했습니다. 과거 기록은 유지됩니다.' : '재적 명부로 복귀했습니다.');
+        };
+        const requestDeleteStudent = (student) => {
+          if(currentMode.value !== 'teacher' || student.deletedAt) return;
+          pendingDeleteStudent.value=student;
+        };
+        const confirmDeleteStudent = () => {
+          const student=pendingDeleteStudent.value;
+          if(currentMode.value !== 'teacher' || !student || student.deletedAt) return;
+          student.deletedAt=Date.now();
+          if(!saveStudentsToLocal()) { delete student.deletedAt; return; }
+          pendingDeleteStudent.value=null;
+          if(statsTarget.value===student.id) {statsTarget.value='all';activeChartPoint.value=null;}
+          if(recordsFilterStudent.value===student.id) recordsFilterStudent.value='all';
+          triggerToast('학생을 삭제했습니다. 삭제한 학생 목록에서 복원할 수 있어요. 기존 기록은 유지됩니다.');
+        };
+        const restoreStudent = (student) => {
+          if(currentMode.value !== 'teacher' || !student.deletedAt) return;
+          const old=student.deletedAt;delete student.deletedAt;
+          if(!saveStudentsToLocal()) {student.deletedAt=old;return;}
+          triggerToast('학생을 명부로 복원했습니다.');
         };
         const resetDemoData = () => {
           if (prompt('학생과 기록을 모두 지웁니다. 먼저 JSON 백업을 저장하세요. 계속하려면 초기화를 입력하세요.') !== '초기화') return;
@@ -1894,6 +1936,7 @@
         });
 
         return {
+          pendingDeleteStudent, requestDeleteStudent, confirmDeleteStudent, restoreStudent, recordingTarget,
           isDemo, startDemo, exitDemo, openDemoTeacher,
           showAllMessages, recordsFrom, recordsTo, onlyAttention, lastBackup, backupData, restoreData, renameStudent, updateFollowUp, updateNote,
           syncStatus,

@@ -6,11 +6,11 @@ const template=html.slice(html.indexOf('<div id="app"'),html.lastIndexOf('<scrip
 const errors=[]; compile(template,{onError:e=>errors.push(e.message+' line '+e.loc.start.line)});assert.deepEqual(errors,[],'Vue template compiles');
 const script=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)[1];
 new vm.Script(script);
-function boot(initial={}, realMode=true) {
+function boot(initial={}, realMode=true, speechClass=null) {
   const storage=new Map(Object.entries({...realMode ? {school_thermometer_mode:'real'} : {},...initial})), intervals=[], timers=[]; let app, fail=false;
   const ctx={ Vue:{ref:value=>({value}),computed:fn=>({get value(){return fn();}}),watch:()=>{},nextTick:()=>{},onMounted:fn=>fn(),createApp:options=>({mount:()=>{app=options.setup();}})},
     localStorage:{getItem:key=>storage.get(key)??null,setItem:(key,value)=>{if(fail)throw Error('quota');storage.set(key,value);},removeItem:key=>storage.delete(key)},
-    window:{confirm:()=>true},confirm:()=>true,prompt:()=>null,document:{addEventListener:()=>{}},console,Date,Set,Blob,URL,
+    window:{confirm:()=>true,SpeechRecognition:speechClass},confirm:()=>true,prompt:()=>null,document:{addEventListener:()=>{}},console,Date,Set,Blob,URL,
     setInterval:(fn,delay)=>intervals.push({fn,delay}),setTimeout:(fn,delay)=>{timers.push({fn,delay});return timers.length;},clearTimeout:()=>{}
   };
   vm.runInNewContext(script,ctx); return {app,storage,timers,intervals,setFail:()=>{fail=true;}};
@@ -42,6 +42,15 @@ mixed.app.startDemo();mixed.app.tempNewPassword.value='demo-change';mixed.app.ch
 assert.equal(mixed.storage.get('school_thermometer_students'),realStudents);assert.equal(mixed.storage.get('school_thermometer_checkins'),realLogs);assert.equal(mixed.storage.get('school_thermometer_password'),'private-test');
 mixed.app.exitDemo();assert.equal(mixed.app.students.value.length,1);assert.equal(mixed.app.teacherPassword.value,'private-test');assert.equal(JSON.stringify(mixed.app.checkins.value),realLogs);
 console.log('PASS: first-visit demo, 8 faces, 164 sample logs, interactive check-in, reset, direct teacher access, classroom/password isolation and safe exit');
+const trash=boot();trash.app.newStudentName.value='삭제검증';trash.app.addStudent();const deleted=trash.app.students.value[0];trash.app.currentMode.value='teacher';trash.app.requestDeleteStudent(deleted);assert.equal(trash.app.pendingDeleteStudent.value.id,deleted.id);trash.app.confirmDeleteStudent();assert.ok(deleted.deletedAt);assert.ok(JSON.parse(trash.storage.get('school_thermometer_students'))[0].deletedAt);trash.app.restoreStudent(deleted);assert.equal(deleted.deletedAt,undefined);
+trash.app.requestDeleteStudent(deleted);trash.setFail();trash.app.confirmDeleteStudent();assert.equal(deleted.deletedAt,undefined,'failed deletion save rolls back');
+const demoDelete=boot({},false);demoDelete.app.openDemoTeacher();const countBefore=demoDelete.app.checkins.value.length;demoDelete.app.requestDeleteStudent(demoDelete.app.students.value[0]);demoDelete.app.confirmDeleteStudent();assert.equal(demoDelete.app.checkins.value.length,countBefore,'historical records retained');assert.equal(demoDelete.app.getTodayCheckinsCount(),3,'deleted student excluded from participation');demoDelete.app.restoreStudent(demoDelete.app.students.value[0]);assert.equal(demoDelete.app.getTodayCheckinsCount(),4);
+const recognizers=[];
+class FakeSpeech { constructor(){recognizers.push(this);} start(){this.onstart?.();} abort(){this.aborted=true;} emit(text){this.onresult?.({results:[[{transcript:text}]]});} }
+const voice=boot({},false,FakeSpeech).app;voice.selectStudent(voice.students.value[4]);voice.openCustomMoodForm();voice.toggleSpeechRecognition('mood');const first=recognizers.at(-1),late=first.onresult;first.emit('오늘 기분은 아주 좋아요');assert.equal(voice.customMoodLabel.value,'오늘 기분은');assert.equal(voice.wizardMessage.value,'');voice.closeCustomMoodForm();assert.equal(voice.isRecording.value,false);assert.equal(first.aborted,true);late({results:[[{transcript:'늦은 결과'}]]});assert.equal(voice.customMoodLabel.value,'오늘 기분은');
+voice.openCustomMoodForm();voice.toggleSpeechRecognition('mood');recognizers.at(-1).emit('설레요');voice.submitCustomMood();assert.equal(voice.wizardStep.value,2);assert.equal(voice.isRecording.value,false);voice.nextStep();voice.toggleSpeechRecognition('message');recognizers.at(-1).emit('선생님 안녕하세요');assert.equal(voice.wizardMessage.value,'선생님 안녕하세요');assert.equal(voice.customMoodLabel.value,'설레요');voice.goHome();assert.equal(voice.isRecording.value,false);
+const unsupported=boot({},false).app;unsupported.selectStudent(unsupported.students.value[4]);unsupported.openCustomMoodForm();unsupported.toggleSpeechRecognition('mood');assert.equal(unsupported.isRecording.value,false);assert.ok(unsupported.toastMessage.value.includes('지원하지 않는'));
+console.log('PASS: recoverable student deletion, restore, storage failure rollback, record retention, voice targets, six-character limit, stale-result rejection and unsupported-browser handling');
 async function testRestore() {
   const b=boot(), data={version:1,students:JSON.parse(env.storage.get('school_thermometer_students')),checkins:JSON.parse(env.storage.get('school_thermometer_checkins'))};
   const event={target:{files:[{size:100,text:async()=>JSON.stringify(data)}],value:'backup.json'}};
