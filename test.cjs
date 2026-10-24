@@ -1,12 +1,13 @@
 const fs=require('fs'), vm=require('vm'), assert=require('node:assert/strict');
+require('./make-demo-avatars.cjs');
 const html=fs.readFileSync('index.html','utf8');
 const {compile}=require('@vue/compiler-dom');
 const template=html.slice(html.indexOf('<div id="app"'),html.lastIndexOf('<script>'));
 const errors=[]; compile(template,{onError:e=>errors.push(e.message+' line '+e.loc.start.line)});assert.deepEqual(errors,[],'Vue template compiles');
 const script=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)[1];
 new vm.Script(script);
-function boot(initial={}) {
-  const storage=new Map(Object.entries(initial)), intervals=[], timers=[]; let app, fail=false;
+function boot(initial={}, realMode=true) {
+  const storage=new Map(Object.entries({...realMode ? {school_thermometer_mode:'real'} : {},...initial})), intervals=[], timers=[]; let app, fail=false;
   const ctx={ Vue:{ref:value=>({value}),computed:fn=>({get value(){return fn();}}),watch:()=>{},nextTick:()=>{},onMounted:fn=>fn(),createApp:options=>({mount:()=>{app=options.setup();}})},
     localStorage:{getItem:key=>storage.get(key)??null,setItem:(key,value)=>{if(fail)throw Error('quota');storage.set(key,value);},removeItem:key=>storage.delete(key)},
     window:{confirm:()=>true},confirm:()=>true,prompt:()=>null,document:{addEventListener:()=>{}},console,Date,Set,Blob,URL,
@@ -27,6 +28,20 @@ a.recordsScope.value='all';a.onlyAttention.value=true;assert.equal(a.filteredRec
 a.updateFollowUp(a.checkins.value[0],'대화 예정');assert.equal(JSON.parse(env.storage.get('school_thermometer_checkins'))[0].followUp,'대화 예정');
 a.deleteStudent(a.students.value[0].id);assert.equal(a.students.value[0].archived,true);assert.equal(a.checkins.value.length,1);a.deleteStudent(a.students.value[0].id);assert.equal(a.students.value[0].archived,false);
 const e=boot();e.app.newStudentName.value='저장실패검증';e.app.addStudent();e.app.selectStudent(e.app.students.value[0]);e.app.selectMood('happy');e.setFail();e.app.submitCheckin();assert.equal(e.app.checkins.value.length,0);assert.equal(e.app.recentSubmittedCheckin.value,null);assert.equal(e.app.syncStatus.value,'error');
+const demo=boot({},false), d=demo.app;
+assert.equal(d.isDemo.value,true);assert.equal(d.students.value.length,8);assert.equal(d.checkins.value.length,164);assert.equal(d.getTodayCheckinsCount(),4);
+for(const st of d.students.value) assert.ok(fs.existsSync(st.photo),'fictional face exists');
+assert.equal(demo.storage.has('school_thermometer_students'),false);assert.equal(demo.storage.has('school_thermometer_checkins'),false);
+d.selectStudent(d.students.value[4]);d.selectMood('excited');d.nextStep();d.nextStep();d.submitCheckin();assert.equal(d.getTodayCheckinsCount(),5);assert.equal(demo.storage.has('school_thermometer_checkins'),false,'demo submits never persist into classroom data');
+d.openDemoTeacher();assert.equal(d.currentMode.value,'teacher');d.startDemo();assert.equal(d.getTodayCheckinsCount(),4);assert.equal(d.currentMode.value,'student');
+d.exitDemo();assert.equal(d.isDemo.value,false);assert.equal(d.students.value.length,0);assert.equal(d.checkins.value.length,0);
+const realStudents=env.storage.get('school_thermometer_students'), realLogs=env.storage.get('school_thermometer_checkins');
+const mixed=boot({school_thermometer_students:realStudents,school_thermometer_checkins:realLogs,school_thermometer_password:'private-test'},false);
+assert.equal(mixed.app.isDemo.value,false,'existing real classroom is not replaced on first update');
+mixed.app.startDemo();mixed.app.tempNewPassword.value='demo-change';mixed.app.changeTeacherPassword();mixed.app.updateFollowUp(mixed.app.checkins.value[0],'지원 완료');mixed.app.newStudentName.value='가상추가';mixed.app.addStudent();
+assert.equal(mixed.storage.get('school_thermometer_students'),realStudents);assert.equal(mixed.storage.get('school_thermometer_checkins'),realLogs);assert.equal(mixed.storage.get('school_thermometer_password'),'private-test');
+mixed.app.exitDemo();assert.equal(mixed.app.students.value.length,1);assert.equal(mixed.app.teacherPassword.value,'private-test');assert.equal(JSON.stringify(mixed.app.checkins.value),realLogs);
+console.log('PASS: first-visit demo, 8 faces, 164 sample logs, interactive check-in, reset, direct teacher access, classroom/password isolation and safe exit');
 async function testRestore() {
   const b=boot(), data={version:1,students:JSON.parse(env.storage.get('school_thermometer_students')),checkins:JSON.parse(env.storage.get('school_thermometer_checkins'))};
   const event={target:{files:[{size:100,text:async()=>JSON.stringify(data)}],value:'backup.json'}};

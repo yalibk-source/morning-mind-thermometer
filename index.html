@@ -90,6 +90,13 @@
       </div>
     </transition>
 
+    <section v-if="isDemo" aria-label="데모 모드 안내" class="mb-6 rounded-3xl border-2 border-sky-200 bg-sky-50 p-5 space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-3"><div><p class="font-black text-sky-900">✨ 데모 체험 중 · 모두 가상 학생과 예시 기록입니다</p><p class="mt-1 text-sm text-sky-900">얼굴은 가상 인물 그림입니다. 변경 사항은 이 화면에서만 유지되며 새로고침하면 초기화됩니다.</p></div><button @click="exitDemo" class="rounded-xl border border-sky-300 bg-white px-4 py-3 font-bold text-sm">실제 학급 사용으로 전환</button></div>
+      <div class="flex flex-wrap gap-2"><button @click="goHome" class="rounded-xl bg-white border border-sky-200 px-4 py-2 font-bold text-sm">① 학생 입력 체험</button><button @click="openDemoTeacher" class="rounded-xl bg-sky-800 text-white px-4 py-2 font-bold text-sm">② 교사 화면 체험</button><button @click="startDemo" class="rounded-xl bg-white border border-sky-200 px-4 py-2 font-bold text-sm">데모 새로 시작</button></div>
+      <p class="text-xs text-sky-900">‘기록 완료’가 없는 친구를 눌러 입력해보세요. 교사 화면에서는 3주간의 추이, 오늘 기록, 확인 권장 사례를 볼 수 있습니다.</p>
+    </section>
+    <div v-else-if="currentMode === 'student' && !selectedStudent" class="mb-5 text-right"><button @click="startDemo" class="rounded-xl border border-sky-200 bg-white px-4 py-2 text-sm font-bold text-sky-900">✨ 가상 학급 데모 체험</button></div>
+
     <!-- [학생 모드] 헤더 영역 -->
     <header class="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4" v-if="currentMode === 'student'">
       <div class="flex items-center space-x-4">
@@ -491,7 +498,7 @@
           <div class="bg-white/10 p-2 rounded-xl text-2xl">☕</div>
           <div>
             <h2 class="text-base font-bold">학급 감정 관리 센터 (선생님 공간)</h2>
-            <p class="text-xs text-slate-400">이 기기의 브라우저에만 저장됩니다 · <span :class="syncStatus === 'error' ? 'text-rose-300' : 'text-emerald-300'">{{ syncStatus === 'error' ? '저장 오류 — 백업 필요' : '로컬 저장 사용 중' }}</span> · 3분 미사용 시 잠금</p>
+            <p class="text-xs text-slate-400">{{ isDemo ? '가상 학급 데모 · 새로고침 시 체험 내용 초기화' : '이 기기의 브라우저에만 저장됩니다' }} · <span :class="syncStatus === 'error' ? 'text-rose-300' : 'text-emerald-300'">{{ syncStatus === 'error' ? '저장 오류 — 백업 필요' : isDemo ? '메모리에서 체험 중' : '로컬 저장 사용 중' }}</span> · 3분 미사용 시 잠금</p>
           </div>
         </div>
         <button @click="goHome" class="px-4 py-2 bg-white/15 hover:bg-white/20 text-xs font-bold rounded-lg transition-colors">
@@ -894,6 +901,7 @@
 
     </main>
 
+    <footer class="mt-10 border-t border-amber-200 pt-5 text-center text-sm font-bold text-amber-900">제작자 · 효양고 이은비</footer>
   </div>
 
   <script>
@@ -981,6 +989,7 @@
         const syncStatus = ref('local');
         const students = ref([]);
         const checkins = ref([]);
+        const isDemo = ref(false);
 
         // 선생님 비밀번호 전용 상태
         const teacherPassword = ref(DEFAULT_PASSWORD);
@@ -1084,6 +1093,7 @@
         };
 
         const saveStudentsToLocal = () => {
+          if (isDemo.value) return true;
           try {
             localStorage.setItem('school_thermometer_students', JSON.stringify(students.value));
             syncStatus.value = 'local'; return true;
@@ -1093,6 +1103,7 @@
         };
 
         const saveCheckinsToLocal = () => {
+          if (isDemo.value) return true;
           try {
             localStorage.setItem('school_thermometer_checkins', JSON.stringify(checkins.value));
             syncStatus.value = 'local'; return true;
@@ -1120,7 +1131,7 @@
             return;
           }
           if (rawPw.length < 4) { triggerToast('비밀번호는 4자 이상으로 입력해주세요.'); return; }
-          try { localStorage.setItem('school_thermometer_password', rawPw); } catch { triggerToast('비밀번호를 저장하지 못했습니다.'); return; }
+          try { if (!isDemo.value) localStorage.setItem('school_thermometer_password', rawPw); } catch { triggerToast('비밀번호를 저장하지 못했습니다.'); return; }
           teacherPassword.value = rawPw;
           tempNewPassword.value = '';
           triggerToast("🔑 선생님 비밀번호가 성공적으로 변경되었습니다!");
@@ -1467,6 +1478,7 @@
         // 선생님 패스워드 검증 후 진입 (실시간 변경 패스워드 검증)
         let loginFailures = 0, loginLockedUntil = 0;
         const enterTeacherDashboard = () => {
+          if (isDemo.value) { openDemoTeacher(); return; }
           confirmModal.value.password = '';
           confirmModal.value.show = true;
           confirmModal.value.onConfirm = () => {
@@ -1813,9 +1825,9 @@
         const updateFollowUp = (record, value) => { const old = record.followUp; record.followUp = value; if (!saveCheckinsToLocal()) record.followUp = old; };
         const updateNote = (record, value) => { const old = record.teacherNote; record.teacherNote = value.slice(0,1000); if (!saveCheckinsToLocal()) record.teacherNote = old; };
         const backupData = () => {
-          const blob = new Blob([JSON.stringify({version:1, exportedAt:new Date().toISOString(), students:students.value, checkins:checkins.value},null,2)],{type:'application/json'});
+          const blob = new Blob([JSON.stringify({version:1, kind:isDemo.value ? 'demo' : 'classroom', exportedAt:new Date().toISOString(), students:students.value, checkins:checkins.value},null,2)],{type:'application/json'});
           const url=URL.createObjectURL(blob), a=document.createElement('a'); a.href=url; a.download='마음온도계_백업_'+getTodayDateString()+'.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
-          lastBackup.value=new Date().toLocaleString('ko-KR'); localStorage.setItem('school_thermometer_last_backup',lastBackup.value);
+          lastBackup.value=new Date().toLocaleString('ko-KR'); if (!isDemo.value) localStorage.setItem('school_thermometer_last_backup',lastBackup.value);
         };
         const restoreData = async event => {
           const file=event.target.files[0]; if(!file) return;
@@ -1823,10 +1835,12 @@
             if(file.size>5*1024*1024) throw Error('백업은 5MB 이하여야 합니다.');
             const data=JSON.parse(await file.text());
             if(data.version!==1 || !Array.isArray(data.students) || !Array.isArray(data.checkins)) throw Error('지원하지 않는 백업 형식입니다.');
+            if(!isDemo.value && (data.kind === 'demo' || data.students.some(st => typeof st.id === 'string' && st.id.startsWith('demo-')))) throw Error('데모 백업은 실제 학급으로 복원할 수 없습니다. 데모 모드에서 복원해주세요.');
             const ids=new Set();
-            for(const st of data.students) { if(typeof st.id!=='string' || ids.has(st.id) || typeof st.name!=='string' || !st.name.trim() || (st.photo && !/^data:image\/(jpeg|png|webp);base64,/.test(st.photo))) throw Error('학생 데이터 형식이 올바르지 않습니다.'); ids.add(st.id); }
+            for(const st of data.students) { if(typeof st.id!=='string' || ids.has(st.id) || typeof st.name!=='string' || !st.name.trim() || (st.photo && !/^data:image\/(jpeg|png|webp);base64,/.test(st.photo) && !(isDemo.value && /^assets\/demo-0[1-8]\.svg$/.test(st.photo)))) throw Error('학생 데이터 형식이 올바르지 않습니다.'); ids.add(st.id); }
             for(const c of data.checkins) { if(!ids.has(c.studentId) || !Number.isFinite(c.score) || c.score<10 || c.score>100 || !/^\d{4}-\d{2}-\d{2}$/.test(c.date) || !Number.isFinite(c.timestamp) || typeof c.mood!=='string' || (c.message!=null && typeof c.message!=='string')) throw Error('기록 데이터 형식이 올바르지 않습니다.'); }
             if(!confirm('현재 명부와 기록을 백업 내용으로 교체합니다. 현재 데이터를 먼저 백업했나요?')) return;
+            if(isDemo.value) { students.value=data.students; checkins.value=data.checkins; triggerToast('데모 화면에만 복원했습니다. 실제 학급은 변경되지 않습니다.'); return; }
             const oldSt=localStorage.getItem('school_thermometer_students'), oldCh=localStorage.getItem('school_thermometer_checkins');
             try { localStorage.setItem('school_thermometer_students',JSON.stringify(data.students)); localStorage.setItem('school_thermometer_checkins',JSON.stringify(data.checkins)); }
             catch(error) { if(oldSt!==null) localStorage.setItem('school_thermometer_students',oldSt); else localStorage.removeItem('school_thermometer_students'); if(oldCh!==null) localStorage.setItem('school_thermometer_checkins',oldCh); else localStorage.removeItem('school_thermometer_checkins'); throw error; }
@@ -1834,8 +1848,44 @@
           } catch(error) { triggerToast('복원 실패: '+error.message); }
           finally { event.target.value=''; }
         };
+        const rememberMode = mode => { try { localStorage.setItem('school_thermometer_mode', mode); } catch {} };
+        const resetViewState = () => {
+          closeConfirm(); teacherTab.value='dashboard'; statsTarget.value='all'; statsPeriod.value=7; activeChartPoint.value=null;
+          recordsScope.value='today'; recordsFilterStudent.value='all'; recordsSearchKeyword.value=''; recordsFrom.value=''; recordsTo.value=''; onlyAttention.value=false;
+          newStudentName.value=''; newStudentPhoto.value=''; tempNewPassword.value=''; lastActivity=Date.now();
+        };
+        const startDemo = () => {
+          resetViewState(); isDemo.value=true; teacherPassword.value=DEFAULT_PASSWORD; lastBackup.value=''; syncStatus.value='local';
+          const names=['김하늘','이서준','박지우','최도윤','정다은','강민재','조서아','윤하준'];
+          students.value=names.map((name,i)=>({id:'demo-'+(i+1),name,color:AVATAR_COLORS[i],photo:'assets/demo-0'+(i+1)+'.svg',customBgColor:'#ffffff'}));
+          const messages=['기분 좋은 아침이에요! 친구들과 공부할래요.','선생님과 조용히 이야기하고 싶어요.','어제 늦게 자서 조금 피곤해요.','아침밥을 맛있게 먹고 왔어요.','오늘 발표를 해보고 싶어요!','친구와 다투어 마음이 조금 불편해요.','책을 끝까지 읽어서 뿌듯해요.','체육 시간이 기다려져요!'];
+          const moods=['happy','sad','tired','calm','excited','anxious','proud','nervous'];
+          const scores=[85,30,40,65,95,35,90,45];
+          const logs=[];
+          for(let offset=20;offset>=0;offset--) {
+            for(let i=0;i<8;i++) {
+              if(offset===0 && i>=4) continue;
+              const index=offset===0?i:(i+offset)%8;
+              const date=getOffsetDateString(offset), time=new Date(date+'T08:'+String(30+i*3).padStart(2,'0')+':00');
+              logs.push({studentId:'demo-'+(i+1),mood:moods[index],score:scores[index],message:messages[index],date,timestamp:time.getTime(),timeString:'08:'+String(30+i*3).padStart(2,'0'),followUp:index===1?'대화 예정':index===2?'확인함':'미확인',teacherNote:index===1?'쉬는 시간에 조용히 이야기 듣기 (가상 메모)':''});
+            }
+          }
+          checkins.value=logs; rememberMode('demo'); triggerToast('가상 학생 8명과 3주간의 예시 기록을 준비했어요.');
+        };
+        const exitDemo = () => {
+          if(!confirm('데모 체험 내용은 사라지고 이 기기의 실제 학급으로 전환합니다. 실제 명부와 기록은 그대로 유지됩니다.')) return;
+          resetViewState(); isDemo.value=false; loadLocalData(); rememberMode('real');
+          try { lastBackup.value=localStorage.getItem('school_thermometer_last_backup') || ''; } catch { lastBackup.value=''; }
+          triggerToast('실제 학급 모드입니다. 가상 학생은 포함되지 않습니다.');
+        };
+        const openDemoTeacher = () => { if(!isDemo.value) return; resetViewState(); currentMode.value='teacher'; };
         onMounted(() => {
-          loadLocalData();
+          try {
+            const realStudents=JSON.parse(localStorage.getItem('school_thermometer_students') || '[]');
+            const realCheckins=JSON.parse(localStorage.getItem('school_thermometer_checkins') || '[]');
+            const preference=localStorage.getItem('school_thermometer_mode');
+            if(preference==='demo') startDemo(); else if(preference==='real' || realStudents.length || realCheckins.length) loadLocalData(); else startDemo();
+          } catch { loadLocalData(); }
           for (const event of ['pointerdown','keydown','input']) document.addEventListener(event, () => { lastActivity=Date.now(); }, {passive:true});
           setInterval(() => {
             const limit=currentMode.value==='teacher'?180000:90000;
@@ -1844,6 +1894,7 @@
         });
 
         return {
+          isDemo, startDemo, exitDemo, openDemoTeacher,
           showAllMessages, recordsFrom, recordsTo, onlyAttention, lastBackup, backupData, restoreData, renameStudent, updateFollowUp, updateNote,
           syncStatus,
           students,

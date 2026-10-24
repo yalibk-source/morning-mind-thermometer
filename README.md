@@ -4,6 +4,18 @@
 
 ## 배포
 
+현재 배포는 **GitHub Pages**를 사용합니다: https://yalibk-source.github.io/morning-mind-thermometer/
+`main`에 변경을 올리면 `.github/workflows/pages.yml`이 테스트, 빌드, Pages 배포를 순서대로 실행합니다. 저장소 Settings → Pages의 Source는 GitHub Actions입니다. Netlify에 대한 아래 내용은 다른 호스팅으로 이전할 때 참고하는 방법입니다.
+
+## 데모 체험
+
+- 처음 방문한 브라우저에 실제 명부·기록이 없다면 가상 학생 8명과 최근 3주간의 예시 기록 164건으로 데모를 시작합니다. 얼굴은 직접 만든 가상 인물 일러스트입니다. 실제 학생 사진이 아닙니다.
+- 오늘은 4명이 기록을 마쳤고, 남은 4명으로 학생 입력을 시연할 수 있습니다.
+- 상단의 **교사 화면 체험**으로 로그인 없이 현황분석, 학생관리, 일일 및 누적기록을 확인할 수 있습니다. 이 바로가기는 데모에서만 동작합니다.
+- 데모의 추가·입력·메모·비밀번호 변경 등은 메모리에만 적용됩니다. 새로고침 또는 **데모 새로 시작**으로 원래 예시가 복원됩니다. 데모 백업은 실제 학급 모드로 가져올 수 없습니다.
+- **실제 학급 사용으로 전환**하면 해당 브라우저의 실제 명부·기록을 불러옵니다. 기존 실제 데이터가 있는 브라우저는 업데이트만으로 데모로 바뀌지 않습니다.
+- 화면 하단 제작자: **효양고 이은비**.
+
 - **기존 Netlify 사이트 업데이트:** `netlify-deploy.zip`을 풀고, 기존 사이트의 Deploys 화면에 압축을 푼 폴더를 올립니다. 폴더 바로 아래에 `index.html`, `_headers`, `assets/`가 있어야 합니다. ZIP 자체보다 압축을 푼 폴더를 올리는 것이 확실합니다.
 - **Git 연결:** 이 프로젝트를 저장소에 넣고 Netlify의 build command를 `npm run build`, publish directory를 `dist`로 설정합니다. `netlify.toml`에도 같은 설정이 있습니다.
 - 로컬 작업: `npm ci` → `npm test` → `npm run build`. `npm run preview`로 `http://localhost:4173`에서 확인합니다.

@@ -1,5 +1,7 @@
 const fs=require('fs'), path=require('path'), cp=require('child_process'), vm=require('vm');
+require('./make-demo-avatars.cjs');
 fs.mkdirSync('dist/assets',{recursive:true});
+fs.cpSync('assets','dist/assets',{recursive:true});
 cp.execFileSync(process.execPath,[require.resolve('tailwindcss/lib/cli.js'),'-i','styles.css','-o','dist/assets/app.css','--minify'],{stdio:'inherit'});
 let html=fs.readFileSync('index.html','utf8');
 html=html.replace(/<script src="https:\/\/cdn.tailwindcss.com"><\/script>/,'<link rel="stylesheet" href="assets/app.css">');
