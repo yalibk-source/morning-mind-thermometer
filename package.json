@@ -1,0 +1,8 @@
+{
+  "name": "classroom-morning-thermometer",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "build": "node build.cjs", "preview": "node preview.cjs", "test": "node test.cjs" },
+  "dependencies": { "vue": "3.5.22" },
+  "devDependencies": { "tailwindcss": "3.4.17" }
+}

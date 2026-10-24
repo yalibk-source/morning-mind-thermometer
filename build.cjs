@@ -1,0 +1,13 @@
+const fs=require('fs'), path=require('path'), cp=require('child_process'), vm=require('vm');
+fs.mkdirSync('dist/assets',{recursive:true});
+cp.execFileSync(process.execPath,[require.resolve('tailwindcss/lib/cli.js'),'-i','styles.css','-o','dist/assets/app.css','--minify'],{stdio:'inherit'});
+let html=fs.readFileSync('index.html','utf8');
+html=html.replace(/<script src="https:\/\/cdn.tailwindcss.com"><\/script>/,'<link rel="stylesheet" href="assets/app.css">');
+html=html.replace(/<script src="https:\/\/unpkg.com\/vue@3\/dist\/vue.global.prod.js"><\/script>/,'<script src="assets/vue.global.prod.js"></script>');
+html=html.replace(/<script>\s*tailwind.config[\s\S]*?<\/script>/,'');
+const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+for(const [,script] of scripts) new vm.Script(script);
+fs.copyFileSync(require.resolve('vue/dist/vue.global.prod.js'),'dist/assets/vue.global.prod.js');
+fs.writeFileSync('dist/index.html',html);
+fs.copyFileSync('_headers','dist/_headers');
+console.log('Build complete: dist/');

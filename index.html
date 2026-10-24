@@ -1,0 +1,1936 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>아침 마음 온도계 🌡️</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 CDN (안정적인 글로벌 프로덕션 빌드) -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <!-- Tailwind Custom Config for Theme -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fffbeb',
+              100: '#fef3c7',
+              200: '#fde68a',
+              300: '#fcd34d',
+              400: '#fbbf24',
+              500: '#f59e0b',
+              600: '#d97706',
+              700: '#b45309',
+              800: '#92400e',
+              900: '#78350f',
+              950: '#451a03',
+            }
+          },
+          fontFamily: {
+            sans: ['Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :focus-visible { outline: 3px solid #b45309 !important; outline-offset: 4px; }
+    button { touch-action: manipulation; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+    /* 스크롤바 디자인 */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #fef3c7;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #f59e0b;
+      border-radius: 10px;
+      border: 2px solid #fef3c7;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #d97706;
+    }
+    /* 터치 및 모바일 더블탭 확대 제한 */
+    body {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    [v-cloak] {
+      display: none;
+    }
+    /* 깜빡임 애니메이션 */
+    @keyframes pulse-red {
+      0%, 100% { background-color: #ef4444; transform: scale(1); }
+      50% { background-color: #f87171; transform: scale(1.05); }
+    }
+    .animate-recording {
+      animation: pulse-red 1.5s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-amber-100 via-orange-50 to-amber-50 min-h-screen text-slate-800 antialiased font-sans pb-12">
+  <div id="app" class="max-w-5xl mx-auto px-4 py-8 sm:py-10" v-cloak>
+    
+    <!-- 토스트 알림창 -->
+    <transition enter-active-class="transform transition ease-out duration-300"
+                enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+                enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
+                leave-active-class="transition ease-in duration-200"
+                leave-from-class="opacity-100"
+                leave-to-class="opacity-0">
+      <div role="status" aria-live="polite" v-if="toastMessage" class="fixed top-6 right-6 z-50 max-w-sm w-full bg-white shadow-2xl rounded-3xl border-4 border-amber-300 p-5 flex items-center space-x-3 pointer-events-auto">
+        <div class="flex-shrink-0 text-3xl">💡</div>
+        <div class="flex-1 text-base font-bold text-slate-700 leading-snug">{{ toastMessage }}</div>
+      </div>
+    </transition>
+
+    <!-- [학생 모드] 헤더 영역 -->
+    <header class="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4" v-if="currentMode === 'student'">
+      <div class="flex items-center space-x-4">
+        <div class="bg-amber-400 p-3 sm:p-4 rounded-3xl shadow-lg transform rotate-3 hover:rotate-0 transition-transform duration-300">
+          <span class="text-4xl sm:text-5xl">🌡️</span>
+        </div>
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">아침 마음 온도계</h1>
+          <p class="text-sm text-amber-800 font-extrabold mt-1">매일 아침, 나의 소중한 마음의 온도를 재어보아요!</p>
+        </div>
+      </div>
+      <button @click="enterTeacherDashboard" class="flex items-center space-x-2 px-5 py-3 bg-white hover:bg-slate-50 border-3 border-slate-300 rounded-2xl text-sm font-black text-slate-700 shadow-md transition-all active:scale-95">
+        <span>🔒</span>
+        <span>선생님 로그인</span>
+      </button>
+    </header>
+
+    <!-- ========================================== -->
+    <!-- 1. [학생 모드] 홈화면: 학생 목록 선택 (5인 1줄 및 세로형 사각형 카드) -->
+    <!-- ========================================== -->
+    <main v-if="currentMode === 'student' && !selectedStudent" class="space-y-8">
+      
+      <!-- 초대형 오늘 우리 반 참여 현황판 -->
+      <div class="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl border-4 border-amber-200 flex flex-col lg:flex-row items-center justify-between gap-6 transform hover:scale-[1.01] transition-all">
+        <div class="flex items-center space-x-5 w-full lg:w-auto">
+          <div class="text-6xl p-3 bg-amber-100 rounded-3xl">🎒</div>
+          <div>
+            <h2 class="text-xl sm:text-2xl font-black text-slate-800">우리가 만드는 따뜻한 교실</h2>
+            <p class="text-base text-slate-500 mt-1 font-bold">
+              오늘 마음을 나눈 친구: 
+              <span class="text-3xl font-black text-amber-500 mx-1">{{ getTodayCheckinsCount() }}</span> 
+              명 / 우리 반 전체 {{ students.filter(st => !st.archived).length }}명
+            </p>
+          </div>
+        </div>
+        
+        <!-- 아침 마음 온도계 비주얼 (평균 온도 표시) -->
+        <div class="w-full lg:w-96 bg-amber-50/50 rounded-2xl p-4 flex items-center justify-between border-3 border-amber-200">
+          <span class="text-sm sm:text-base font-extrabold text-amber-900">우리 반 평균 마음 온도</span>
+          <div class="flex items-center space-x-3">
+            <span class="text-2xl sm:text-3xl font-black" :style="{ color: getThermometerColor(getClassAverageScore()) }">
+              {{ getTodayCheckinsCount() ? getClassAverageScore() + '°C' : '—' }}
+            </span>
+            <span class="text-lg sm:text-xl font-bold" v-if="!getTodayCheckinsCount()">아직 기록이 없어요</span><span class="text-lg sm:text-xl font-bold" v-else-if="getClassAverageScore() >= 80">😊 기분이 아주 좋아요</span>
+            <span class="text-lg sm:text-xl font-bold" v-else-if="getClassAverageScore() >= 50">🌤️ 아주 적당해요</span>
+            <span class="text-lg sm:text-xl font-bold" v-else>❄️ 토닥토닥 위로가 필요해요</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 안내 타이틀 -->
+      <div class="text-center py-2">
+        <h3 class="text-xl sm:text-2xl font-black text-slate-800">내 이름을 찾아서 눌러보세요! 👇</h3>
+      </div>
+
+      <p v-if="!students.length" class="bg-white rounded-2xl p-6 text-center font-bold">선생님 로그인 → 학생관리에서 우리 반 학생을 먼저 등록해주세요.</p>
+      <!-- 세로형 길쭉한 학생 카드 그리드 (한 줄에 5명 정렬 완료) -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-5 gap-4">
+        <div v-for="student in students.filter(st => !st.archived)" :key="student.id" 
+             class="relative p-4 rounded-[2rem] border-4 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1.5 flex flex-col items-center justify-between group min-h-[180px] shadow-lg"
+             :class="hasSubmittedToday(student.id) ? 'border-amber-300 bg-amber-50/30 opacity-75' : 'border-white hover:border-amber-400'"
+             :style="{ backgroundColor: student.customBgColor || '#ffffff' }">
+          
+          <!-- 학생 클릭 영역 (기록 입력으로 이동) -->
+          <button @click="selectStudent(student)" class="w-full flex flex-col items-center focus:outline-none">
+            <!-- 오늘 완료 대형 마크 -->
+            <div v-if="hasSubmittedToday(student.id)" class="absolute inset-x-0 top-0 bottom-14 bg-white/70 rounded-t-[1.8rem] flex flex-col items-center justify-center z-10 transition-all">
+              <span class="text-4xl mb-1">✅</span>
+              <span class="bg-amber-500 text-white text-xs px-2.5 py-1 rounded-xl font-black shadow-sm">
+                기록 완료!
+              </span>
+            </div>
+
+            <!-- 세로형 길쭉한 학생 사진 / 아바타 영역 (그림처럼 길게 변경) -->
+            <div class="relative w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center shadow-md mb-3 transition-transform duration-300 group-hover:scale-105"
+                 :class="student.photo ? '' : student.color || 'bg-slate-100'">
+              <img v-if="student.photo" :src="student.photo" :alt="student.name" class="w-full h-full object-cover">
+              <span v-else class="text-4xl font-black text-slate-500">{{ student.name.charAt(0) }}</span>
+            </div>
+
+            <!-- 대형 이름 -->
+            <span class="text-base sm:text-lg font-black text-slate-800 tracking-tight">{{ student.name }}</span>
+          </button>
+
+          <!-- 사진 밖 테두리 내 화면 색상 실시간 선택기 (귀여운 파스텔 단추 형태) -->
+          <div v-if="false" class="w-full flex justify-center items-center space-x-1.5 mt-3 pt-2.5 border-t border-slate-100/70 z-20">
+            <button v-for="color in PASTEL_CARD_COLORS" :key="color.value"
+                    @click="changeStudentCardColor(student.id, color.value)"
+                    class="w-4 h-4 rounded-full border border-slate-300/60 transition-transform active:scale-150 focus:outline-none"
+                    :class="(student.customBgColor || '#ffffff') === color.value ? 'ring-2 ring-slate-800 scale-125' : 'hover:scale-110'"
+                    :style="{ backgroundColor: color.value }"
+                    :title="color.name">
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </main>
+
+    <!-- ========================================== -->
+    <!-- 2. [학생 모드] 기분 입력 위저드 (Step 1 -> 2 -> 3) -->
+    <!-- ========================================== -->
+    <main v-if="currentMode === 'student' && selectedStudent" class="bg-white rounded-[2.5rem] p-6 sm:p-10 shadow-2xl border-4 border-amber-200 space-y-8">
+      
+      <!-- 위저드 헤더 -->
+      <div class="flex items-center justify-between border-b-4 border-slate-100 pb-5">
+        <button @click="goHome" class="flex items-center space-x-2 text-sm font-extrabold text-slate-500 hover:text-slate-800 transition-colors bg-slate-100 px-4 py-2 rounded-2xl">
+          <span>⬅️</span>
+          <span>메인으로</span>
+        </button>
+        <div class="flex items-center space-x-3">
+          <div class="w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center shadow-md" :class="selectedStudent.color || 'bg-slate-100'">
+            <img v-if="selectedStudent.photo" :src="selectedStudent.photo" class="w-full h-full object-cover">
+            <span v-else class="text-lg font-black text-slate-600">{{ selectedStudent.name.charAt(0) }}</span>
+          </div>
+          <span class="text-lg sm:text-xl font-black text-slate-800">{{ selectedStudent.name }} 친구의 마음 기록</span>
+        </div>
+        <div class="text-sm font-black text-amber-500 bg-amber-50 px-3.5 py-1.5 rounded-2xl">단계 {{ wizardStep }}/3</div>
+      </div>
+
+      <!-- 단계 표시선 -->
+      <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden flex">
+        <div class="bg-amber-400 h-full transition-all duration-300" :style="{ width: (wizardStep * 33.3) + '%' }"></div>
+      </div>
+
+      <!-- [위저드 Step 1] 기분 선택 -->
+      <div v-if="wizardStep === 1" class="space-y-6 animate-fadeIn">
+        <div class="text-center space-y-1">
+          <h3 class="text-xl sm:text-2xl font-black text-slate-800">지금 내 기분은 어떤가요?</h3>
+          <p class="text-sm text-slate-400">나와 가장 닮은 마음에 노크해 보세요!</p>
+        </div>
+
+        <!-- 감정 카드 그리드 -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4" v-if="!showCustomMoodForm">
+          <button v-for="mood in MOODS" :key="mood.id"
+                  @click="selectMood(mood.id)" :aria-pressed="wizardMood === mood.id"
+                  class="p-5 rounded-[2rem] border-3 text-center transition-all duration-300 active:scale-95 flex flex-col items-center justify-center space-y-3 hover:shadow-xl hover:-translate-y-1"
+                  :class="wizardMood === mood.id ? 'border-amber-500 bg-amber-50 text-amber-900 shadow-md' : 'border-slate-100 hover:border-amber-300 text-slate-700 bg-slate-50/50'">
+            <span class="text-4xl sm:text-5xl">{{ mood.emoji }}</span>
+            <span class="text-sm sm:text-base font-black">{{ mood.label }}</span>
+          </button>
+          
+          <!-- 직접 입력 전용 버튼 -->
+          <button @click="openCustomMoodForm"
+                  class="p-5 rounded-[2rem] border-3 border-dashed border-amber-400 bg-amber-50/30 text-center transition-all duration-300 active:scale-95 flex flex-col items-center justify-center space-y-3 hover:bg-amber-50 hover:shadow-xl hover:-translate-y-1">
+            <span class="text-4xl sm:text-5xl">✍️</span>
+            <span class="text-sm sm:text-base font-black text-amber-800">기분 직접 쓰기</span>
+          </button>
+        </div>
+
+        <!-- 직접 입력 폼 (Step 1 내 서브 폼) -->
+        <div v-if="showCustomMoodForm" class="max-w-md mx-auto bg-slate-50 border-3 border-slate-200 p-6 rounded-[2.5rem] space-y-6 animate-fadeIn">
+          <div class="flex justify-between items-center">
+            <h4 class="text-base font-black text-slate-700">✏️ 나만의 아침 기분 직접 쓰기</h4>
+            <button @click="closeCustomMoodForm" class="text-sm font-extrabold text-slate-400 hover:text-slate-600 bg-white px-3 py-1 rounded-xl shadow-sm border">뒤로</button>
+          </div>
+
+          <!-- 기분 문구 입력 -->
+          <div class="space-y-2">
+            <label class="text-xs sm:text-sm font-black text-slate-500">지금 기분을 글자로 적어주세요 (최대 6자)</label>
+            <input type="text" v-model="customMoodLabel" placeholder="예: 무척 졸려요, 너무 설레요" maxlength="6"
+                   class="w-full p-4 border-2 border-slate-200 rounded-2xl text-base font-black outline-none focus:ring-4 focus:ring-amber-300 bg-white text-center">
+          </div>
+
+          <!-- 이모티콘 간편 선택 그리드 -->
+          <div class="space-y-2">
+            <label class="text-xs sm:text-sm font-black text-slate-500">어울리는 이모티콘을 하나 골라주세요</label>
+            <div class="grid grid-cols-6 gap-2 bg-white p-4 rounded-2xl border-2 border-slate-100">
+              <button v-for="emoji in CUSTOM_EMOJI_POOL" :key="emoji"
+                      @click="customMoodEmoji = emoji"
+                      class="text-3xl p-2 rounded-xl transition-transform hover:scale-125"
+                      :class="customMoodEmoji === emoji ? 'bg-amber-100 scale-110' : ''">
+                {{ emoji }}
+              </button>
+            </div>
+          </div>
+
+          <div class="flex space-x-3 pt-2">
+            <button @click="closeCustomMoodForm" class="w-1/3 py-3 bg-white border-2 border-slate-200 text-slate-500 rounded-2xl text-sm font-bold">
+              취소
+            </button>
+            <button @click="submitCustomMood" class="w-2/3 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-sm font-black shadow animate-scaleUp">
+              이 기분으로 결정! 🌟
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- [위저드 Step 2] 마음 온도(Score) 설정 (옛날 진짜 아날로그 온도계 형태) -->
+      <div v-if="wizardStep === 2" class="space-y-6 animate-fadeIn">
+        <div class="text-center space-y-1">
+          <h3 class="text-xl sm:text-2xl font-black text-slate-800">내 마음의 온도는 몇 도인가요?</h3>
+          <p class="text-sm text-slate-400">지금 기분이 얼마나 편안하고 좋은지 골라주세요. 높을수록 기분이 좋아요. 처음 값은 70도예요. 확인하고 다음으로 가세요.</p>
+        </div>
+
+        <div class="flex flex-col md:flex-row items-center justify-center py-6 gap-10">
+          
+          <!-- 아날로그 유리 온도계 -->
+          <div class="relative flex items-center justify-center p-8 bg-[#fdfaf2] rounded-[2.5rem] border-4 border-[#85532c] shadow-2xl w-56 select-none">
+            
+            <!-- 왼쪽 눈금 수치 레이블 (100도 ~ 10도) -->
+            <div class="absolute left-8 h-[280px] flex flex-col justify-between text-xs font-black text-stone-600 select-none pointer-events-none text-right w-10">
+              <span v-for="temp in [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]" :key="temp">{{ temp }}°</span>
+            </div>
+
+            <!-- 터치/클릭을 감지하는 온도계 몸체 기둥 -->
+            <div class="relative w-16 h-[340px] flex flex-col items-center justify-start cursor-pointer group"
+                 ref="thermometerRef"
+                 @mousedown="handleThermometerInteraction"
+                 @mousemove="handleThermometerDrag"
+                 @touchstart="handleThermometerInteraction"
+                 @touchmove="handleThermometerDrag">
+              
+              <!-- 외부 유리관 튜브 본체 -->
+              <div class="absolute top-0 w-5 h-[276px] bg-slate-200/60 border-2 border-stone-400 rounded-t-full shadow-inner overflow-hidden">
+                <!-- 유리 기둥 반사광 광택 효과 -->
+                <div class="absolute top-0 left-0.5 w-0.5 h-full bg-white/40 rounded-full"></div>
+                
+                <!-- 내부 온도 빨간 액체 (바) -->
+                <div class="absolute bottom-0 left-0 right-0 rounded-t-full transition-all duration-300"
+                     :style="{ height: getRedLiquidHeightPercentage() + '%', backgroundColor: getThermometerColor(wizardScore) }">
+                </div>
+              </div>
+
+              <!-- 빨간 전구 원형 액체 보관용 유리벌브 (하단 동그라미) -->
+              <div class="absolute bottom-6 w-14 h-14 rounded-full border-2 border-stone-400 flex items-center justify-center transition-all duration-300"
+                   :style="{ backgroundColor: getThermometerColor(wizardScore) }">
+                <!-- 하단 구 형태의 입체적 하이라이트 효과 -->
+                <div class="absolute top-1 left-3 w-4 h-4 bg-white/40 rounded-full"></div>
+                <!-- 벌브 내부 온도 텍스트 표시 -->
+                <span class="text-white text-sm font-black drop-shadow-md z-10">{{ wizardScore }}°</span>
+              </div>
+            </div>
+
+            <!-- 오른쪽 세밀한 눈금 눈금선 -->
+            <div class="absolute right-9 h-[280px] flex flex-col justify-between pointer-events-none w-4">
+              <div v-for="i in 37" :key="i" 
+                   class="h-[1px] bg-stone-400"
+                   :class="(i - 1) % 4 === 0 ? 'w-4 bg-stone-700' : 'w-2'"></div>
+            </div>
+
+          </div>
+
+          <!-- 보조 슬라이더 조절바 (온도계와 완벽 연동됨) -->
+          <div class="w-full max-w-xs space-y-6">
+            <div class="bg-amber-50/70 p-5 rounded-3xl border-2 border-amber-200 text-center space-y-2 shadow-sm">
+              <span class="text-sm font-bold text-slate-400">내가 고른 아침 마음</span>
+              <div class="flex items-center justify-center space-x-2">
+                <span class="text-3xl">{{ getSelectedMoodEmoji() }}</span>
+                <span class="text-base font-black text-slate-700">{{ getSelectedMoodLabel() }}</span>
+              </div>
+              <div class="text-2xl font-black" :style="{ color: getThermometerColor(wizardScore) }">
+                마음 온도: <span class="text-3xl font-black">{{ wizardScore }}°C</span>
+              </div>
+            </div>
+
+            <div>
+              <input aria-label="마음 온도: 높을수록 기분이 좋아요" type="range" min="10" max="100" step="5" v-model.number="wizardScore"
+                     class="w-full h-4 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500">
+              <div class="flex justify-between text-xs font-bold text-slate-400 mt-2">
+                <span>❄️ 차가워요 (10°C)</span>
+                <span>🌤️ 평온해요 (50°C)</span>
+                <span>🔥 뜨거워요 (100°C)</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- [위저드 Step 3] 아침 한 마디 메시지 작성 (음성 인식 지원 및 풍성해진 프리셋) -->
+      <div v-if="wizardStep === 3" class="space-y-6 animate-fadeIn">
+        <div class="text-center space-y-1">
+          <h3 class="text-xl sm:text-2xl font-black text-slate-800">선생님께 한 마디 전해볼까요?</h3>
+          <p class="text-sm text-slate-400">아래 문구를 고르거나 직접 적어보세요. 음성 입력은 브라우저 제공업체로 음성이 전송될 수 있어 선생님과 함께 사용하세요.</p>
+        </div>
+
+        <!-- 다양해진 빠른 선택 가이드 메시지 -->
+        <div class="max-w-xl mx-auto space-y-3">
+          <label class="text-xs sm:text-sm font-black text-amber-800 block text-center">👇 마음에 쏙 드는 마음 상자를 터치해 보세요!</label>
+          <div class="flex flex-wrap gap-2 justify-center p-3 border-2 border-amber-100 rounded-[2rem] bg-amber-50/20">
+            <button v-for="msg in (showAllMessages ? PRESET_MESSAGES : PRESET_MESSAGES.slice(0, 4))" :key="msg"
+                    @click="wizardMessage = msg"
+                    class="px-4 py-2 bg-white hover:bg-amber-100 hover:text-amber-900 rounded-2xl text-xs sm:text-sm font-black text-slate-600 border-2 border-slate-200 shadow-sm transition-all active:scale-95">
+              {{ msg }}
+            </button>
+          </div>
+        </div>
+
+        <button @click="showAllMessages = !showAllMessages" class="block mx-auto p-3 font-bold text-amber-800">{{ showAllMessages ? '간단히 보기' : '다른 문구 더 보기' }}</button><p class="text-center text-sm text-slate-600">한 마디는 쓰지 않아도 괜찮아요. 내용은 이 기기의 선생님 화면에서 확인할 수 있어요.</p>
+        <!-- 입력란 & 음성 인식 컨트롤 탑재 -->
+        <div class="max-w-md mx-auto space-y-4">
+          <div class="relative">
+            <textarea aria-label="선생님께 전하는 한 마디" maxlength="1000" v-model="wizardMessage" rows="3" placeholder="여기에 마음의 속삭임을 자유롭게 적어보세요..."
+                      class="w-full p-5 border-2 border-slate-200 rounded-3xl text-sm sm:text-base focus:ring-4 focus:ring-amber-300 outline-none resize-none transition-all placeholder:text-slate-300 bg-white shadow-inner"></textarea>
+          </div>
+
+          <!-- 음성인식(STT) 구동 제어부 -->
+          <div class="flex justify-center">
+            <button @click="toggleSpeechRecognition"
+                    class="flex items-center space-x-2 px-6 py-3.5 rounded-full text-sm font-black shadow-lg transition-all active:scale-95"
+                    :class="isRecording ? 'animate-recording text-white shadow-rose-300' : 'bg-slate-800 hover:bg-slate-700 text-white shadow-slate-300'">
+              <span class="text-base">{{ isRecording ? '🛑' : '🎙️' }}</span>
+              <span>{{ isRecording ? '목소리를 듣고 있어요... (누르면 정지)' : '목소리로 쓰기' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 위저드 조작 바닥글 버튼들 -->
+      <div class="flex justify-between items-center border-t-2 border-slate-100 pt-5">
+        <button v-if="wizardStep > 1" @click="prevStep" 
+                class="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl text-sm font-black transition-all">
+          이전 단계로
+        </button>
+        <div v-else></div> <!-- 자리 유지용 공백 -->
+
+        <div class="flex space-x-3">
+          <button @click="goHome" class="px-6 py-3 bg-white border-2 border-slate-200 text-slate-500 hover:bg-slate-50 rounded-2xl text-sm font-black transition-all">
+            취소하기
+          </button>
+          
+          <button v-if="wizardStep < 3" @click="nextStep"
+                  class="px-8 py-3 bg-slate-950 hover:bg-slate-800 text-white rounded-2xl text-sm font-black shadow-md transition-all active:scale-95">
+            {{ wizardStep === 2 ? wizardScore + '도로 다음 단계' : '다음 단계로' }}
+          </button>
+          
+          <button v-else @click="submitCheckin"
+                  class="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-sm font-black shadow-md transition-all active:scale-95">
+            기록 제출하기 🌡️
+          </button>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ========================================== -->
+    <!-- 3. [학생 모드] 완료 팝업 (모달) -->
+    <!-- ========================================== -->
+    <div v-if="recentSubmittedCheckin" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-[2.5rem] p-6 sm:p-8 max-w-sm w-full shadow-2xl border-4 border-amber-300 text-center space-y-6 animate-scaleUp">
+        <div class="text-7xl">🎉</div>
+        <div class="space-y-2">
+          <h4 class="text-2xl font-black text-slate-800">{{ getStudentName(recentSubmittedCheckin.studentId) }} 친구!</h4>
+          <p class="text-sm sm:text-base text-slate-600 font-bold">오늘 마음을 알려줘서 고마워요. 이제 다음 친구에게 차례를 넘겨주세요.</p>
+        </div>
+
+        <div v-if="false" class="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left space-y-1">
+          <div class="text-xs font-bold text-slate-400">기록을 마쳤어요</div>
+          <div class="flex items-center space-x-2 text-sm text-slate-700">
+            <span class="text-xl">{{ getMoodDisplayEmoji(recentSubmittedCheckin.mood, recentSubmittedCheckin.customEmoji) }}</span>
+            <span class="font-bold">{{ getMoodDisplayLabel(recentSubmittedCheckin.mood, recentSubmittedCheckin.customLabel) }}</span>
+            <span class="font-black text-amber-500">({{ recentSubmittedCheckin.score }}°C)</span>
+          </div>
+          <p v-if="false" class="text-xs text-slate-500 italic mt-1.5 border-t border-slate-200/60 pt-1.5">
+            "{{ recentSubmittedCheckin.message }}"
+          </p>
+        </div>
+
+        <button @click="closeConfirm" class="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-sm font-black shadow-md transition-all active:scale-95">
+          다음 친구 차례예요! (5초 후 처음으로)
+        </button>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 4. [선생님 모드] 비밀번호 확인 팝업 (모달 - 기본 비밀번호 힌트 문구 제거됨) -->
+    <!-- ========================================== -->
+    <div role="dialog" aria-modal="true" aria-label="선생님 로그인" v-if="confirmModal.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border-4 border-amber-300 space-y-4">
+        <div class="flex items-center space-x-2.5">
+          <span class="text-2xl">🔒</span>
+          <h4 class="text-base font-extrabold text-slate-800">선생님 전용 비밀번호 입력</h4>
+        </div>
+        <p class="text-xs text-slate-400">이 영역은 학급 기온 관리 및 분석을 위한 공간입니다. 선생님 비밀번호를 입력해주세요.</p>
+        
+        <input type="password" v-model="confirmModal.password" @keyup.enter="confirmModal.onConfirm" aria-label="선생님 비밀번호" placeholder="선생님 비밀번호"
+               class="w-full p-3 border border-slate-200 rounded-xl text-center text-sm font-bold tracking-widest outline-none focus:ring-2 focus:ring-amber-400">
+
+        <div class="flex space-x-2">
+          <button @click="confirmModal.show = false" class="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-500">
+            취소
+          </button>
+          <button @click="confirmModal.onConfirm" class="w-1/2 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold">
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 5. [선생님 모드] 관리 대시보드 화면 -->
+    <!-- ========================================== -->
+    <main v-if="currentMode === 'teacher'" class="space-y-6 animate-fadeIn">
+      
+      <!-- 선생님 모드 탑바 -->
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-900 text-white p-5 rounded-[2rem] shadow-lg">
+        <div class="flex items-center space-x-3">
+          <div class="bg-white/10 p-2 rounded-xl text-2xl">☕</div>
+          <div>
+            <h2 class="text-base font-bold">학급 감정 관리 센터 (선생님 공간)</h2>
+            <p class="text-xs text-slate-400">이 기기의 브라우저에만 저장됩니다 · <span :class="syncStatus === 'error' ? 'text-rose-300' : 'text-emerald-300'">{{ syncStatus === 'error' ? '저장 오류 — 백업 필요' : '로컬 저장 사용 중' }}</span> · 3분 미사용 시 잠금</p>
+          </div>
+        </div>
+        <button @click="goHome" class="px-4 py-2 bg-white/15 hover:bg-white/20 text-xs font-bold rounded-lg transition-colors">
+          학생 모드로 나가기 🚪
+        </button>
+      </div>
+
+      <!-- 선생님 탭 메뉴 -->
+      <div class="flex border-b border-slate-200">
+        <button v-for="tab in [
+          {id: 'dashboard', label: '📊 현황분석', icon: '📈'},
+          {id: 'students', label: '🎒 학생관리', icon: '👤'},
+          {id: 'records', label: '📋 일일 및 누적기록', icon: '📝'}
+        ]" :key="tab.id"
+                @click="changeTeacherTab(tab.id)"
+                class="flex-1 py-3 text-xs sm:text-sm font-bold border-b-2 text-center flex items-center justify-center space-x-1.5 transition-all"
+                :class="teacherTab === tab.id ? 'border-amber-500 text-amber-600 font-extrabold' : 'border-transparent text-slate-400 hover:text-slate-600'">
+          <span>{{ tab.icon }}</span>
+          <span>{{ tab.label }}</span>
+        </button>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- 5-A. 현황분석 탭 (누적 추이 그래프 부활 및 강화) -->
+      <!-- ========================================== -->
+      <section v-if="teacherTab === 'dashboard'" class="space-y-6 animate-fadeIn">
+        
+        <!-- 케어가 필요한 학생 목록 (주의 알림) -->
+        <div class="bg-rose-50 border border-rose-100 rounded-3xl p-5 space-y-3 shadow-inner">
+          <div class="flex items-center space-x-2">
+            <span class="text-xl">🚨</span>
+            <h3 class="text-sm font-extrabold text-rose-800">특별한 관심이 필요한 친구 (온도 40°C 이하 또는 걱정스러운 기분)</h3>
+          </div>
+          
+          <div v-if="getAttentionRequiredStudents().length === 0" class="text-xs text-slate-500 py-2">
+            {{ getTodayCheckinsCount() ? '현재 확인 권장 기준에 해당하는 기록이 없습니다.' : '오늘 기록이 없어 아직 상태를 확인할 수 없습니다.' }}
+          </div>
+          
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div v-for="student in getAttentionRequiredStudents()" :key="student.id"
+                 class="bg-white p-3.5 rounded-2xl border border-rose-200 shadow-sm flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center bg-slate-100">
+                  <img v-if="student.photo" :src="student.photo" class="w-full h-full object-cover">
+                  <span v-else class="text-xs font-bold text-slate-600">{{ student.name.charAt(0) }}</span>
+                </div>
+                <div>
+                  <h4 class="text-xs font-black text-slate-800">{{ student.name }} {{ student.archived ? '(보관)' : '' }}</h4>
+                  <p class="text-[10px] text-rose-500 font-semibold">
+                    온도: {{ student.checkin.score }}°C • 기분: {{ getCheckinMoodText(student.checkin) }}
+                  </p>
+                </div>
+              </div>
+              <!-- 대화 유도 메시지 -->
+              <div class="text-[10px] text-slate-400 bg-slate-50 px-2 py-1 rounded-lg max-w-[150px] truncate" :title="student.checkin.message">
+                "{{ student.checkin.message || '상세 사유 미작성' }}"
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- [부활 및 대폭 업그레이드] 마음 온도 누적 변화 추이 그래프 -->
+        <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-5">
+          <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div class="space-y-1">
+              <h3 class="text-base font-black text-slate-800 flex items-center space-x-2">
+                <span>📈</span>
+                <span>마음 온도 장기 추이 분석</span>
+              </h3>
+              <p class="text-xs text-slate-400">전체 또는 개인의 감정 기복과 마음 온도의 점진적 변화를 추적합니다.</p>
+            </div>
+            
+            <!-- 분석 필터 옵션 바 -->
+            <div class="flex flex-wrap gap-2">
+              <!-- 분석 대상 필터 -->
+              <select v-model="statsTarget" class="p-2 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-slate-50 text-slate-700">
+                <option value="all">📊 전체 학급 평균</option>
+                <option v-for="st in students" :key="st.id" :value="st.id">👤 {{ st.name }}</option>
+              </select>
+
+              <!-- 분석 기간 필터 -->
+              <div class="bg-slate-100 p-1 rounded-xl flex space-x-1">
+                <button v-for="period in [
+                  { value: 7, label: '일주일' },
+                  { value: 30, label: '한 달' },
+                  { value: 365, label: '1년' }
+                ]" :key="period.value"
+                        @click="statsPeriod = period.value"
+                        class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all"
+                        :class="statsPeriod === period.value ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'">
+                  {{ period.label }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 순수 SVG 꺾은선 추이 그래프 (안정성 100%, 미려한 UI 보증) -->
+          <div class="w-full bg-slate-50/50 p-4 rounded-2xl border border-slate-100 relative min-h-[260px]">
+            <div v-if="trendPoints.length === 0" class="absolute inset-0 flex items-center justify-center text-xs font-bold text-slate-400">
+              분석 기간 동안 누적된 기분 제출 기록이 아직 없습니다.
+            </div>
+            
+            <div v-else class="space-y-4">
+              <!-- SVG 렌더링 부 -->
+              <svg viewBox="0 0 600 220" class="w-full h-auto overflow-visible">
+                <defs>
+                  <!-- 그라데이션 채우기 필터 -->
+                  <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.3"/>
+                    <stop offset="100%" stop-color="#fbbf24" stop-opacity="0.0"/>
+                  </linearGradient>
+                </defs>
+
+                <!-- 가로 가이드 수평 눈금선 및 라벨 -->
+                <g class="stroke-slate-200 stroke-1 stroke-dasharray-[4,4]">
+                  <line x1="40" y1="20" x2="580" y2="20" />
+                  <line x1="40" y1="65" x2="580" y2="65" />
+                  <line x1="40" y1="110" x2="580" y2="110" />
+                  <line x1="40" y1="155" x2="580" y2="155" />
+                  <line x1="40" y1="200" x2="580" y2="200" />
+                </g>
+
+                <!-- 수평값 수치 표현 -->
+                <g class="fill-slate-400 font-bold text-[9px] text-right" text-anchor="end">
+                  <text x="32" y="24">100°C</text>
+                  <text x="32" y="69">75°C</text>
+                  <text x="32" y="114">50°C</text>
+                  <text x="32" y="159">25°C</text>
+                  <text x="32" y="204">0°C</text>
+                </g>
+
+                <!-- 데이터 영역 면적 그라데이션 그리기 -->
+                <path :d="trendAreaPath" fill="url(#chartGrad)" />
+
+                <!-- 꺾은선 라인 패스 그리기 -->
+                <path :d="trendLinePath" fill="none" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+
+                <!-- 데이터 요소 원형 포인터(노드) 및 기분 이모지 매핑 -->
+                <g v-for="(pt, idx) in trendPoints" :key="idx" class="cursor-pointer group" @click="activeChartPoint = pt">
+                  <!-- 호버 시 밝혀지는 투명 터치원 -->
+                  <circle :cx="pt.x" :cy="pt.y" r="14" fill="transparent" class="hover:fill-amber-400/10 transition-colors" />
+                  <!-- 실제 포인트 내부 원 -->
+                  <circle :cx="pt.x" :cy="pt.y" r="5" fill="#f59e0b" stroke="#ffffff" stroke-width="2" />
+                  <!-- 상단 기분 이모티콘 띄우기 (7일/30일 분석 시 시인성 좋음) -->
+                  <text v-if="statsPeriod <= 30 && pt.emoji" :x="pt.x" :y="pt.y - 10" text-anchor="middle" class="text-xs">{{ pt.emoji }}</text>
+                </g>
+
+                <!-- X축 날짜 라벨 출력 -->
+                <g class="fill-slate-400 font-bold text-[8px]" text-anchor="middle">
+                  <text v-for="(pt, idx) in getSparseLabels()" :key="idx" :x="pt.x" y="216">
+                    {{ pt.dateLabel }}
+                  </text>
+                </g>
+              </svg>
+
+              <!-- 선택된 포인트 세부 팝오버 정보창 -->
+              <div class="bg-amber-50 rounded-2xl p-3.5 border border-amber-200 flex items-center justify-between text-xs transition-all animate-scaleUp" v-if="activeChartPoint">
+                <div class="flex items-center space-x-3">
+                  <span class="text-2xl">{{ activeChartPoint.emoji }}</span>
+                  <div>
+                    <span class="font-extrabold text-slate-500 mr-1.5">날짜:</span>
+                    <span class="font-black text-slate-800">{{ activeChartPoint.dateLabel }}</span>
+                    <span class="mx-2 text-slate-300">|</span>
+                    <span class="font-extrabold text-slate-500 mr-1.5">마음 온도:</span>
+                    <span class="font-black text-amber-600">{{ activeChartPoint.score }}°C · 기록 {{ activeChartPoint.count }}건</span>
+                  </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <span class="text-slate-400 font-bold italic" v-if="activeChartPoint.message">"{{ activeChartPoint.message }}"</span>
+                  <button @click="activeChartPoint = null" class="text-slate-400 hover:text-slate-700 font-bold px-2 py-1 bg-white border rounded-lg shadow-xs">닫기</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="bg-white rounded-2xl p-5"><h3 class="font-bold">오늘 아직 기록하지 않은 친구 ({{ students.filter(st => !st.archived && !hasSubmittedToday(st.id)).length }}명)</h3><p class="mt-2">{{ students.filter(st => !st.archived && !hasSubmittedToday(st.id)).map(st => st.name).join(', ') || '모두 기록했어요.' }}</p></div>
+        <!-- 감정 분석 지표 및 자체 통계 파트 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- 오늘의 기분 분포 -->
+          <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
+            <h3 class="text-sm font-black text-slate-800 flex items-center space-x-2">
+              <span>🌈</span>
+              <span>오늘의 감정 비중</span>
+            </h3>
+
+            <!-- 순수 CSS/HTML 감정 막대 그래프 (에러 없음) -->
+            <div class="space-y-3.5 max-h-80 overflow-y-auto pr-1">
+              <div v-for="stat in getMoodStatistics()" :key="stat.moodId" class="space-y-1">
+                <div class="flex justify-between text-xs font-semibold">
+                  <span class="text-slate-600 flex items-center space-x-1">
+                    <span>{{ stat.emoji }}</span>
+                    <span>{{ stat.label }}</span>
+                  </span>
+                  <span class="text-slate-400 font-bold">{{ stat.count }}명 ({{ stat.percentage }}%)</span>
+                </div>
+                <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all duration-500" :style="{ width: stat.percentage + '%', backgroundColor: stat.color || '#f59e0b' }"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 아침 지도 가이드 -->
+          <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex flex-col justify-between space-y-4">
+            <div>
+              <h3 class="text-sm font-black text-slate-800 flex items-center space-x-2 mb-3">
+                <span>💡</span>
+                <span>오늘 아침 지원 참고</span>
+              </h3>
+              <p class="text-xs text-slate-600 leading-relaxed bg-brand-50/50 p-4 rounded-2xl border border-brand-100">
+                {{ getInsightText() }}
+              </p>
+            </div>
+            <div class="bg-slate-50 p-3 rounded-2xl text-[10px] text-slate-400">
+              💡 본 인사이트는 학급 학생들의 금일 아침 평온 지수 및 마음 온도 분포를 기초로 자동 계산된 정서 지원 가이드라인입니다.
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
+      <!-- 5-B. 학생관리 탭 -->
+      <!-- ========================================== -->
+      <section v-if="teacherTab === 'students'" class="bg-white rounded-3xl p-5 sm:p-6 border border-slate-100 shadow-sm space-y-6 animate-fadeIn">
+        
+        <!-- 학생 추가 폼 -->
+        <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200/60 space-y-4">
+          <h3 class="text-xs font-extrabold text-slate-600">신규 학생 등록</h3>
+          <div class="flex flex-col sm:flex-row gap-3">
+            <input type="text" v-model="newStudentName" placeholder="학생 이름" 
+                   class="flex-1 p-3 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+            
+            <!-- 아바타 색상 고르기 -->
+            <div class="flex items-center space-x-1.5 self-center">
+              <button v-for="(color, colorIndex) in AVATAR_COLORS" :key="color" :aria-label="'학생 색상 ' + (colorIndex + 1)" :aria-pressed="newStudentColor === color"
+                      @click="newStudentColor = color"
+                      class="w-6 h-6 rounded-full border-2 transition-transform"
+                      :class="[color, newStudentColor === color ? 'border-slate-800 scale-110' : 'border-transparent']"></button>
+            </div>
+
+            <!-- 사진 업로드 필드 (자동 이미지 압축 탑재) -->
+            <label class="px-4 py-3 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs text-center font-bold text-slate-600 cursor-pointer shadow-sm">
+              📸 사진 등록
+              <input type="file" accept="image/*" @change="handlePhotoUpload" class="hidden">
+            </label>
+
+            <button @click="addStudent" class="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md">
+              추가하기
+            </button>
+          </div>
+          <div v-if="newStudentPhoto" class="flex items-center space-x-3">
+            <span class="text-xs font-bold text-slate-400">등록 예정 사진 미리보기:</span>
+            <div class="w-10 h-10 rounded-lg overflow-hidden border border-slate-200">
+              <img :src="newStudentPhoto" class="w-full h-full object-cover">
+            </div>
+          </div>
+        </div>
+
+        <!-- 학생 목록 관리 -->
+        <div class="space-y-3 pb-4 border-b border-slate-100">
+          <div class="flex justify-between items-center">
+            <h3 class="text-xs font-extrabold text-slate-500">전체 학생 명부 (총 {{ students.length }}명)</h3>
+            <span class="text-xs text-slate-500">보관한 학생의 과거 기록은 유지됩니다.</span>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div v-for="student in students" :key="student.id"
+                 class="p-3.5 border border-slate-100 rounded-2xl hover:border-slate-300 transition-colors flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center bg-slate-100" :class="student.color || 'bg-slate-100'">
+                  <img v-if="student.photo" :src="student.photo" class="w-full h-full object-cover">
+                  <span v-else class="text-xs font-bold text-slate-600">{{ student.name.charAt(0) }}</span>
+                </div>
+                <div>
+                  <h4 class="text-xs font-black text-slate-800">{{ student.name }}</h4>
+                  <p class="text-[10px] text-slate-400">고유번호: {{ student.id }}</p>
+                </div>
+              </div>
+              <button @click="renameStudent(student)" class="p-2 text-xs font-bold">이름 수정</button><button @click="deleteStudent(student.id)" class="p-2 text-slate-300 hover:text-rose-500 text-xs transition-colors">
+                {{ student.archived ? '재적 복귀' : '전출·보관' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <section class="bg-slate-50 p-5 rounded-2xl space-y-3"><h3 class="font-bold">백업 및 복원</h3><p class="text-sm">이 브라우저의 사이트 데이터를 지우면 기록도 사라집니다. JSON 백업은 학생 명부·기록·교사 메모를 포함하므로 선생님이 보관해주세요.</p><p class="text-sm">마지막 백업: {{ lastBackup || '아직 없음' }}</p><button @click="backupData" class="p-3 rounded-xl bg-slate-900 text-white">JSON 백업 저장</button><label class="inline-block p-3 rounded-xl border cursor-pointer">JSON 백업 복원<input type="file" accept="application/json,.json" @change="restoreData" class="hidden"></label></section><details class="border border-rose-200 rounded-2xl p-4"><summary class="font-bold text-rose-700">위험 작업</summary><p class="my-3 text-sm">초기화 전 반드시 백업을 저장하세요. 다른 사이트 데이터와 비밀번호는 지우지 않습니다.</p><button @click="resetDemoData" class="p-3 border rounded-lg text-rose-700">명부·기록 전체 초기화</button></details>
+        <!-- 선생님 비밀번호 변경 폼 -->
+        <div class="bg-amber-50/50 rounded-2xl p-4 border border-amber-200/60 space-y-3 mt-6">
+          <div class="flex items-center space-x-2">
+            <span class="text-lg">🔑</span>
+            <h3 class="text-xs font-black text-amber-950">선생님 비밀번호 변경</h3>
+          </div>
+          <p class="text-[11px] text-amber-800/80 leading-relaxed">선생님만 접근할 수 있는 비밀번호를 변경합니다. 다음번 로그인 시부터 변경된 비밀번호가 요구됩니다.</p>
+          <div class="flex flex-col sm:flex-row gap-2 max-w-md">
+            <input type="password" v-model="tempNewPassword" placeholder="새로운 비밀번호 입력" 
+                   class="flex-1 p-3 border border-amber-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-amber-400 bg-white">
+            <button @click="changeTeacherPassword" class="px-5 py-3 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-md transition-all">
+              비밀번호 변경하기
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
+      <!-- 5-C. 일일 및 누적 기록 탭 (강력한 기재 및 한 마디 누계 검색 기능 신설) -->
+      <!-- ========================================== -->
+      <section v-if="teacherTab === 'records'" class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-6 animate-fadeIn">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <h3 class="text-base font-black text-slate-800">📋 학급 마음 누적 데이터 로그</h3>
+            <p class="text-xs text-slate-400">아이들이 남긴 따뜻하고 소중한 기록들을 모아서 검색하고 분석합니다.</p>
+          </div>
+          <!-- 엑셀 다운로드 -->
+          <button @click="downloadCSV" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md flex items-center space-x-1.5 transition-all active:scale-95">
+            <span>📥</span>
+            <span>엑셀(CSV) 다운로드</span>
+          </button>
+        </div>
+
+        <!-- 검색 필터 영역 -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+          <!-- 기재 범위 필터 (오늘 vs 전체누적) -->
+          <div class="space-y-1">
+            <label class="text-[11px] font-extrabold text-slate-400">조회 기록 범위</label>
+            <div class="flex bg-white p-1 rounded-xl border border-slate-200">
+              <button @click="recordsScope = 'today'" class="flex-1 py-1 text-xs font-bold rounded-lg transition-all"
+                      :class="recordsScope === 'today' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'">오늘 기록만</button>
+              <button @click="recordsScope = 'all'" class="flex-1 py-1 text-xs font-bold rounded-lg transition-all"
+                      :class="recordsScope === 'all' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'">전체 기록</button>
+            </div>
+          </div>
+
+          <!-- 학생 필터 -->
+          <div class="space-y-1">
+            <label class="text-[11px] font-extrabold text-slate-400">특정 학생 지정</label>
+            <select v-model="recordsFilterStudent" class="w-full p-2 border border-slate-200 rounded-xl text-xs font-bold bg-white text-slate-700 outline-none">
+              <option value="all">👥 모든 친구들</option>
+              <option v-for="st in students" :key="st.id" :value="st.id">{{ st.name }}</option>
+            </select>
+          </div>
+
+          <!-- 키워드 한마디 검색 -->
+          <div class="space-y-1">
+            <label class="text-[11px] font-extrabold text-slate-400">한 마디 메시지 검색</label>
+            <div class="relative">
+              <input type="text" v-model="recordsSearchKeyword" placeholder="검색어 입력 (예: 상담, 칭찬, 아파요)"
+                     class="w-full p-2 pr-8 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-400">
+              <span class="absolute right-2.5 top-2.5 text-xs text-slate-300">🔍</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3 items-end text-sm"><label>시작일 <input aria-label="조회 시작일" type="date" v-model="recordsFrom" @change="recordsScope = 'all'" class="border rounded-lg p-2"></label><label>종료일 <input aria-label="조회 종료일" type="date" v-model="recordsTo" @change="recordsScope = 'all'" class="border rounded-lg p-2"></label><label><input type="checkbox" v-model="onlyAttention"> 확인 권장 기록만</label><button @click="recordsFrom = ''; recordsTo = ''; onlyAttention = false" class="p-2 border rounded-lg">필터 초기화</button><p v-if="recordsFrom && recordsTo && recordsFrom > recordsTo" role="alert">시작일은 종료일보다 늦을 수 없습니다.</p></div>
+        <!-- 일일 및 누계 데이터 테이블 -->
+        <div class="overflow-x-auto rounded-2xl border border-slate-100 shadow-sm">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-100 text-slate-400">
+                <th class="p-4 font-extrabold">기록 일자 및 시간</th>
+                <th class="p-4 font-extrabold">이름</th>
+                <th class="p-4 font-extrabold">선택한 기분</th>
+                <th class="p-4 font-extrabold text-center">마음 온도</th>
+                <th class="p-4 font-extrabold">선택 및 작성한 한 마디</th>
+                <th class="p-4 font-extrabold text-center">확인 권장 / 지원 진행</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="filteredRecords.length === 0">
+                <td colspan="6" class="p-10 text-center text-slate-400 font-bold">조건에 맞는 마음 기록 데이터가 존재하지 않습니다.</td>
+              </tr>
+              <tr v-for="checkin in filteredRecords" :key="checkin.timestamp" class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                <td class="p-4 text-slate-400 font-bold">{{ checkin.date }} <span class="text-amber-500 font-medium ml-1">({{ checkin.timeString }})</span></td>
+                <td class="p-4 font-black text-slate-800">{{ getStudentName(checkin.studentId) }}</td>
+                <td class="p-4 flex items-center space-x-1.5">
+                  <span>{{ getMoodDisplayEmoji(checkin.mood, checkin.customEmoji) }}</span>
+                  <span class="font-bold text-slate-600">{{ getMoodDisplayLabel(checkin.mood, checkin.customLabel) }}</span>
+                </td>
+                <td class="p-4 text-center font-black" :style="{ color: getThermometerColor(checkin.score) }">
+                  {{ checkin.score }}°C
+                </td>
+                <td class="p-4 text-slate-700 font-bold max-w-[280px] break-all">
+                  {{ checkin.message || '-' }}
+                </td>
+                <td class="p-4 text-center">
+                  <span v-if="isCautionNeeded(checkin)" class="bg-rose-100 text-rose-700 font-extrabold px-2.5 py-1 rounded-full text-[10px] animate-pulse">
+                    교사 확인 권장
+                  </span>
+                  <span v-else class="text-emerald-500 font-semibold text-[10px]">현재 기준 해당 없음</span><p v-if="isCautionNeeded(checkin)" class="text-xs mt-2">{{ checkin.score <= 40 ? '온도 40도 이하' : '선택한 기분 확인 권장' }}</p><select aria-label="지원 진행 상태" :value="checkin.followUp || '미확인'" @change="updateFollowUp(checkin, $event.target.value)" class="block mt-2 p-2 border rounded-lg"><option>미확인</option><option>확인함</option><option>대화 예정</option><option>지원 완료</option></select><input aria-label="교사 지원 메모" placeholder="지원 메모" :value="checkin.teacherNote || ''" @change="updateNote(checkin, $event.target.value)" maxlength="1000" class="block mt-2 p-2 border rounded-lg">
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
+
+    // 기본 비밀번호 초기값 상수
+    const DEFAULT_PASSWORD = '3333';
+
+    // 기본 학생 샘플 데이터
+    function getOffsetDateString(offset) {
+      const d = new Date();
+      d.setDate(d.getDate() - offset);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    // 카드 테두리 내부 배경화면 파스텔 색상 풀
+    const PASTEL_CARD_COLORS = [
+      { name: '하양', value: '#ffffff' },
+      { name: '살구 핑크', value: '#ffe3e3' },
+      { name: '버터 레몬', value: '#fef9c3' },
+      { name: '새싹 민트', value: '#d1fae5' },
+      { name: '맑은 하늘', value: '#dbeafe' },
+      { name: '포근 라벤더', value: '#f3e8ff' }
+    ];
+
+    // 확장되고 다양해진 기본 기분 목록 (총 12종)
+    const MOODS = [
+      { id: 'happy', label: '행복해요', emoji: '😊', color: '#10b981' },
+      { id: 'excited', label: '신나요', emoji: '😆', color: '#f59e0b' },
+      { id: 'flutter', label: '설레요', emoji: '💕', color: '#ec4899' },
+      { id: 'calm', label: '평온해요', emoji: '😌', color: '#3b82f6' },
+      { id: 'proud', label: '뿌듯해요', emoji: '😎', color: '#06b6d4' },
+      { id: 'tired', label: '피곤해요', emoji: '🥱', color: '#6b7280' },
+      { id: 'sad', label: '슬퍼요', emoji: '😢', color: '#6366f1' },
+      { id: 'angry', label: '화나요', emoji: '😡', color: '#ef4444' },
+      { id: 'anxious', label: '걱정돼요', emoji: '😰', color: '#8b5cf6' },
+      { id: 'nervous', label: '긴장돼요', emoji: '😬', color: '#f97316' },
+      { id: 'bored', label: '심심해요', emoji: '😑', color: '#94a3b8' },
+      { id: 'sick', label: '아파요', emoji: '🤒', color: '#f43f5e' }
+    ];
+
+    // 기분 직접 쓰기 이모티콘 풀
+    const CUSTOM_EMOJI_POOL = [
+      '🥰', '🤩', '🤪', '🥱', '😭', '🤯', 
+      '🧐', '🫠', '🤒', '😷', '🥶', '🥵', 
+      '👻', '👾', '🎨', '🌟', '🍀', '🍕'
+    ];
+
+    // 더욱 풍성해진 아침 마음 속삭임 프리셋
+    const PRESET_MESSAGES = [
+      "선생님과 비밀로 속닥속닥 상담하고 싶어요 🤫",
+      "오늘 잘해서 특급 칭찬 듬뿍 받고 싶어요 ⭐",
+      "오늘 발표 자신 있어요! 꼭 시켜주세요 🙋",
+      "기분 좋은 아침이에요! 신나게 공부할래요 ✨",
+      "어젯밤에 늦게 자서 지금 너무 피곤해요... 💤",
+      "감기 기운이 있어서 머리가 지끈지끈 아파요 🤒",
+      "친구와 사소한 일로 다투어서 마음이 우울해요 😢",
+      "오늘 급식에 제가 좋아하는 메뉴가 나와서 신나요 🍕",
+      "오늘 체육 수업에 땀나게 열심히 뛰어놀래요 ⚽",
+      "아침밥을 굶고 와서 배가 살살 고파요 🍳",
+      "선생님 오늘 옷이 너무 예쁘고 멋지세요! ❤️",
+      "오늘 우리 모둠 친구들이랑 더 친해지고 싶어요 🙌",
+      "오늘 1인 1역 청소 당번을 완전 성실히 할래요 🧹"
+    ];
+
+    // 아바타 랜덤 백그라운드 칼라 프리셋
+    const AVATAR_COLORS = [
+      'bg-emerald-100', 'bg-indigo-100', 'bg-amber-100', 'bg-pink-100', 
+      'bg-sky-100', 'bg-rose-100', 'bg-teal-100', 'bg-purple-100'
+    ];
+
+    const getTodayDateString = () => {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    createApp({
+      setup() {
+        const syncStatus = ref('local');
+        const students = ref([]);
+        const checkins = ref([]);
+
+        // 선생님 비밀번호 전용 상태
+        const teacherPassword = ref(DEFAULT_PASSWORD);
+        const tempNewPassword = ref('');
+
+        // 모드 상태 조절 ('student' | 'teacher')
+        const currentMode = ref('student');
+        const clockTick = ref(Date.now()); setInterval(() => { clockTick.value = Date.now(); }, 30000);
+        const selectedStudent = ref(null);
+
+        // 학생 자가체크인 위저드 상태
+        const wizardStep = ref(1);
+        const wizardMood = ref('');
+        const wizardScore = ref(70);
+        const wizardMessage = ref('');
+        const recentSubmittedCheckin = ref(null);
+
+        // 기분 직접 쓰기 폼 관련 상태
+        const showCustomMoodForm = ref(false);
+        const customMoodLabel = ref('');
+        const customMoodEmoji = ref('🥰');
+        const isCustomMoodSubmitted = ref(false);
+
+        // 음성 인식 관련 상태
+        const isRecording = ref(false);
+        let recognition = null;
+
+        // 교사용 인터페이스 탭 컨트롤 ('dashboard' | 'students' | 'records')
+        const teacherTab = ref('dashboard');
+        
+        // 장기 추이 시각화용 전용 필터 상태
+        const statsTarget = ref('all'); // 'all' or studentId
+        const statsPeriod = ref(7); // 7, 30, 365
+        const activeChartPoint = ref(null); // 터치하여 활성화된 그래프 노드 상세정보
+
+        // 마음 로그 누적 레코드 검색 전용 필터 상태
+        const recordsScope = ref('today'); // 'today' or 'all'
+        const recordsFilterStudent = ref('all');
+        const recordsSearchKeyword = ref('');
+
+        // 학생 추가 전용 폼
+        const newStudentName = ref('');
+        const newStudentColor = ref('bg-emerald-100');
+        const newStudentPhoto = ref('');
+
+        // 알림 제어용 변수
+        const toastMessage = ref('');
+        const confirmModal = ref({
+          show: false,
+          password: '',
+          onConfirm: () => {}
+        });
+
+        const thermometerRef = ref(null);
+
+        // 토스트 알림 작동용 유틸리티
+        const triggerToast = (msg) => {
+          toastMessage.value = msg;
+          setTimeout(() => {
+            if (toastMessage.value === msg) {
+              toastMessage.value = '';
+            }
+          }, 3000);
+        };
+
+        // 로컬 데이터 세이브 및 로드
+        const loadLocalData = () => {
+          try {
+            // 비밀번호 로드
+            const savedPw = localStorage.getItem('school_thermometer_password');
+            if (savedPw) {
+              teacherPassword.value = savedPw;
+            } else {
+              teacherPassword.value = DEFAULT_PASSWORD;
+            }
+
+            const localSt = localStorage.getItem('school_thermometer_students');
+            const localCh = localStorage.getItem('school_thermometer_checkins');
+            
+            if (localSt) {
+              students.value = JSON.parse(localSt);
+              students.value.forEach(s => {
+                if (!s.customBgColor) s.customBgColor = '#ffffff';
+              });
+            } else {
+              students.value = [];
+              localStorage.setItem('school_thermometer_students', JSON.stringify(students.value));
+            }
+
+            if (localCh) {
+              checkins.value = JSON.parse(localCh);
+            } else {
+              // 배포본은 실제 입력 전까지 기록을 생성하지 않습니다.
+              checkins.value = [];
+              localStorage.setItem('school_thermometer_checkins', JSON.stringify(checkins.value));
+            }
+          } catch (e) {
+            console.error("Localstorage load error:", e);
+            students.value = []; syncStatus.value = "error"; triggerToast("저장 데이터를 읽지 못했습니다. 백업을 복원해주세요. 기존 저장본은 유지됩니다.");
+          }
+        };
+
+        const saveStudentsToLocal = () => {
+          try {
+            localStorage.setItem('school_thermometer_students', JSON.stringify(students.value));
+            syncStatus.value = 'local'; return true;
+          } catch (e) {
+            syncStatus.value = "error"; triggerToast("🚨 저장 공간이 부족합니다. 고화질 사진을 정리해주시거나 다시 시도해주세요."); return false;
+          }
+        };
+
+        const saveCheckinsToLocal = () => {
+          try {
+            localStorage.setItem('school_thermometer_checkins', JSON.stringify(checkins.value));
+            syncStatus.value = 'local'; return true;
+          } catch (e) {
+            syncStatus.value = 'error';
+            triggerToast("🚨 저장에 실패했습니다. 제출되지 않았으니 선생님께 알려주세요."); return false;
+          }
+        };
+
+        // 학생 개별 카드 배경 색상 실시간 변경 처리
+        const changeStudentCardColor = (studentId, colorValue) => {
+          const student = students.value.find(s => s.id === studentId);
+          if (student) {
+            student.customBgColor = colorValue;
+            saveStudentsToLocal();
+            triggerToast(`${student.name} 친구의 카드 배경색이 예쁘게 변경되었어요! ✨`);
+          }
+        };
+
+        // 선생님 비밀번호 변경 동작
+        const changeTeacherPassword = () => {
+          const rawPw = tempNewPassword.value.trim();
+          if (!rawPw) {
+            triggerToast("💡 변경할 새 비밀번호를 입력해주세요.");
+            return;
+          }
+          if (rawPw.length < 4) { triggerToast('비밀번호는 4자 이상으로 입력해주세요.'); return; }
+          try { localStorage.setItem('school_thermometer_password', rawPw); } catch { triggerToast('비밀번호를 저장하지 못했습니다.'); return; }
+          teacherPassword.value = rawPw;
+          tempNewPassword.value = '';
+          triggerToast("🔑 선생님 비밀번호가 성공적으로 변경되었습니다!");
+        };
+
+        // 이미지 압축 및 Base64 변환 함수 (LocalStorage Quota 방지)
+        const compressAndSetPhoto = (file) => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+              const img = new Image();
+              img.src = e.target.result;
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 120;
+                const MAX_HEIGHT = 120;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                  if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                  }
+                } else {
+                  if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                  }
+                }
+                canvas.width = width;
+                canvas.height = height;
+
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                resolve(dataUrl);
+              };
+            };
+            reader.onerror = error => reject(error);
+          });
+        };
+
+        const handlePhotoUpload = async (event) => {
+          const file = event.target.files[0];
+          if (!file) return;
+          try {
+            const compressed = await compressAndSetPhoto(file);
+            newStudentPhoto.value = compressed;
+            triggerToast("📸 사진 등록을 완료했습니다. 학생을 추가하면 완전히 반영됩니다.");
+          } catch (err) {
+            triggerToast("❌ 사진 처리에 실패했습니다.");
+          }
+        };
+
+        // 오늘 제출 완료 여부 검출
+        const hasSubmittedToday = (studentId) => {
+          clockTick.value; const today = getTodayDateString();
+          return checkins.value.some(c => c.studentId === studentId && c.date === today);
+        };
+
+        // 오늘 제출한 학생의 감정 이모지 리턴
+        const getSubmittedEmojiToday = (studentId) => {
+          clockTick.value; const today = getTodayDateString();
+          const found = checkins.value.find(c => c.studentId === studentId && c.date === today);
+          if (found) {
+            if (found.mood === 'custom') {
+              return found.customEmoji || '✍️';
+            }
+            const mObj = MOODS.find(m => m.id === found.mood);
+            return mObj ? mObj.emoji : '🌡️';
+          }
+          return '🌡️';
+        };
+
+        // 오늘 참여 학생 수
+        const getTodayCheckinsCount = () => {
+          clockTick.value; const today = getTodayDateString();
+          return checkins.value.filter(c => c.date === today).length;
+        };
+
+        // 특정 온도 임계점 이하 또는 슬픈 마음일 경우 주의 요망 설정
+        const isCautionNeeded = (checkin) => {
+          return checkin.score <= 40 || ['sad', 'angry', 'anxious', 'sick', 'nervous'].includes(checkin.mood);
+        };
+
+        // 학급 평균 온도 계산
+        const getClassAverageScore = () => {
+          clockTick.value; const today = getTodayDateString();
+          const todayCheckins = checkins.value.filter(c => c.date === today);
+          if (todayCheckins.length === 0) return 0;
+          const sum = todayCheckins.reduce((acc, curr) => acc + curr.score, 0);
+          return Math.round(sum / todayCheckins.length);
+        };
+
+        // 온도 수치에 대응하는 온도계 색상 반환
+        const getThermometerColor = (score) => {
+          if (score >= 80) return '#ef4444'; // 빨강
+          if (score >= 60) return '#f59e0b'; // 노랑
+          if (score >= 40) return '#10b981'; // 초록
+          return '#3b82f6'; // 파랑
+        };
+
+        // 학생 선택 액션
+        const selectStudent = (student) => {
+          if (hasSubmittedToday(student.id)) {
+            triggerToast(`${student.name} 친구는 이미 오늘 아침 마음 온도 측정을 완료했어요!`);
+            return;
+          }
+          if (!window.confirm(`${student.name} 친구가 맞나요? 맞으면 확인을 눌러주세요.`)) return;
+          lastActivity = Date.now();
+          selectedStudent.value = student;
+          wizardStep.value = 1;
+          wizardMood.value = '';
+          wizardScore.value = 70;
+          wizardMessage.value = '';
+          showCustomMoodForm.value = false;
+          customMoodLabel.value = '';
+          customMoodEmoji.value = '🥰';
+          isCustomMoodSubmitted.value = false;
+        };
+
+        // 위저드 순서 제어
+        const nextStep = () => {
+          if (!wizardMood.value) { triggerToast('지금 기분을 하나 골라주세요.'); return; }
+          if (wizardStep.value < 3) wizardStep.value++;
+        };
+
+        const prevStep = () => {
+          if (wizardStep.value > 1) {
+            wizardStep.value--;
+            if (isRecording.value) {
+              stopRecognition();
+            }
+          }
+        };
+
+        const selectMood = (moodId) => {
+          wizardMood.value = moodId;
+          isCustomMoodSubmitted.value = false;
+        };
+
+        // 직접 쓰기 폼 제어
+        const openCustomMoodForm = () => {
+          showCustomMoodForm.value = true;
+          customMoodLabel.value = '';
+          customMoodEmoji.value = '🥰';
+        };
+
+        const closeCustomMoodForm = () => {
+          showCustomMoodForm.value = false;
+        };
+
+        const submitCustomMood = () => {
+          if (!customMoodLabel.value.trim()) {
+            triggerToast("💡 지금의 기분을 한 단어로 적어주세요!");
+            return;
+          }
+          wizardMood.value = 'custom';
+          isCustomMoodSubmitted.value = true;
+          showCustomMoodForm.value = false;
+          nextStep();
+        };
+
+        // 선택 기분별 정보 추출 헬퍼들
+        const getSelectedMoodEmoji = () => {
+          if (isCustomMoodSubmitted.value && wizardMood.value === 'custom') {
+            return customMoodEmoji.value;
+          }
+          const found = MOODS.find(m => m.id === wizardMood.value);
+          return found ? found.emoji : '🌡️';
+        };
+
+        const getSelectedMoodLabel = () => {
+          if (isCustomMoodSubmitted.value && wizardMood.value === 'custom') {
+            return customMoodLabel.value;
+          }
+          const found = MOODS.find(m => m.id === wizardMood.value);
+          return found ? found.label : '기타 기분';
+        };
+
+        // 아날로그 온도계 드래그/클릭 연산 처리
+        const handleThermometerInteraction = (event) => {
+          event.preventDefault();
+          updateScoreFromCoordinates(event);
+        };
+
+        const handleThermometerDrag = (event) => {
+          if (event.buttons === 1 || event.touches) {
+            updateScoreFromCoordinates(event);
+          }
+        };
+
+        const updateScoreFromCoordinates = (event) => {
+          if (!thermometerRef.value) return;
+          
+          const rect = thermometerRef.value.getBoundingClientRect();
+          const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+          
+          const marginOffset = 40; 
+          const validHeight = rect.height - 110; 
+          const relativeY = clientY - rect.top - marginOffset;
+          
+          let pct = 1 - (relativeY / validHeight);
+          if (pct < 0) pct = 0;
+          if (pct > 1) pct = 1;
+          
+          let calculatedScore = Math.round((pct * 90 + 10) / 5) * 5;
+          if (calculatedScore < 10) calculatedScore = 10;
+          if (calculatedScore > 100) calculatedScore = 100;
+          
+          wizardScore.value = calculatedScore;
+        };
+
+        const getRedLiquidHeightPercentage = () => {
+          const minVal = 10;
+          const maxVal = 100;
+          const pct = (wizardScore.value - minVal) / (maxVal - minVal);
+          return 12 + pct * 84;
+        };
+
+        // 음성 인식 처리 (STT)
+        const initSpeechRecognition = () => {
+          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (!SpeechRecognition) {
+            return null;
+          }
+          const rec = new SpeechRecognition();
+          rec.continuous = false;
+          rec.interimResults = false;
+          rec.lang = 'ko-KR';
+
+          rec.onstart = () => {
+            isRecording.value = true;
+          };
+
+          rec.onresult = (event) => {
+            const resultText = event.results[0][0].transcript;
+            if (resultText) {
+              if (!selectedStudent.value || currentMode.value !== 'student' || recentSubmittedCheckin.value || !isRecording.value) return;
+              wizardMessage.value = (wizardMessage.value + " " + resultText).trim().slice(0, 1000);
+              triggerToast("🎙️ 목소리가 성공적으로 인식되었어요!");
+            }
+          };
+
+          rec.onerror = (event) => {
+            console.error(event);
+            if (event.error === 'not-allowed') {
+              triggerToast("❌ 마이크 사용 권한을 확인해 주세요.");
+            } else {
+              triggerToast("❌ 음성 인식 실행 중 작은 오류가 발생했습니다.");
+            }
+            stopRecognition();
+          };
+
+          rec.onend = () => {
+            isRecording.value = false;
+          };
+
+          return rec;
+        };
+
+        const toggleSpeechRecognition = () => {
+          if (isRecording.value) {
+            stopRecognition();
+          } else {
+            startRecognition();
+          }
+        };
+
+        const startRecognition = () => {
+          if (!recognition) {
+            recognition = initSpeechRecognition();
+          }
+          if (!recognition) {
+            triggerToast("❌ 음성 인식을 지원하지 않는 브라우저입니다.");
+            return;
+          }
+          try {
+            recognition.start();
+          } catch (e) {
+            console.error(e);
+          }
+        };
+
+        const stopRecognition = () => {
+          if (recognition) {
+            try {
+              recognition.abort();
+            } catch (e) {
+              console.error(e);
+            }
+          }
+          isRecording.value = false;
+        };
+
+        // 결과 제출
+        const submitCheckin = () => {
+          if (!selectedStudent.value || !wizardMood.value || recentSubmittedCheckin.value) return;
+          if (hasSubmittedToday(selectedStudent.value.id)) { goHome(); return; }
+          clockTick.value; const today = getTodayDateString();
+          const now = new Date();
+          const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+          const newCheckin = {
+            studentId: selectedStudent.value.id,
+            mood: wizardMood.value,
+            customLabel: wizardMood.value === 'custom' ? customMoodLabel.value : '',
+            customEmoji: wizardMood.value === 'custom' ? customMoodEmoji.value : '',
+            score: wizardScore.value,
+            message: wizardMessage.value,
+            date: today,
+            timestamp: now.getTime(),
+            timeString: timeString
+          };
+
+          checkins.value.push(newCheckin);
+          if (!saveCheckinsToLocal()) { checkins.value.pop(); return; }
+
+          recentSubmittedCheckin.value = newCheckin;
+          completionTimer = setTimeout(closeConfirm, 5000);
+          
+          if (isRecording.value) {
+            stopRecognition();
+          }
+        };
+
+        const closeConfirm = () => {
+          recentSubmittedCheckin.value = null;
+          selectedStudent.value = null;
+          goHome();
+        };
+
+        const goHome = () => {
+          clearTimeout(completionTimer); recentSubmittedCheckin.value = null; wizardMessage.value = ''; wizardMood.value = ''; customMoodLabel.value = ''; showAllMessages.value = false; confirmModal.value.show = false; confirmModal.value.password = '';
+          selectedStudent.value = null;
+          currentMode.value = 'student';
+          showCustomMoodForm.value = false;
+          if (recognition) { stopRecognition(); }
+        };
+
+        // 선생님 패스워드 검증 후 진입 (실시간 변경 패스워드 검증)
+        let loginFailures = 0, loginLockedUntil = 0;
+        const enterTeacherDashboard = () => {
+          confirmModal.value.password = '';
+          confirmModal.value.show = true;
+          confirmModal.value.onConfirm = () => {
+            if (Date.now() < loginLockedUntil) { triggerToast('로그인 시도가 많습니다. 1분 뒤 다시 시도해주세요.'); return; }
+            if (confirmModal.value.password === teacherPassword.value) {
+              loginFailures = 0;
+              lastActivity = Date.now();
+              currentMode.value = 'teacher'; confirmModal.value.password = '';
+              confirmModal.value.show = false;
+              triggerToast("🔓 선생님 관리자 모드가 실행되었습니다.");
+            } else {
+              confirmModal.value.password = ''; loginFailures++; if (loginFailures >= 5) { loginLockedUntil = Date.now()+60000; loginFailures=0; }
+              triggerToast('비밀번호가 올바르지 않습니다. 5회 실패하면 1분간 대기합니다.');
+            }
+          };
+        };
+
+        const changeTeacherTab = (tabId) => {
+          teacherTab.value = tabId;
+        };
+
+        const getSortedCheckins = () => {
+          clockTick.value; const today = getTodayDateString();
+          return checkins.value
+            .filter(c => c.date === today)
+            .sort((a, b) => b.timestamp - a.timestamp);
+        };
+
+        const getStudentName = (id) => {
+          const s = students.value.find(st => st.id === id);
+          return s ? s.name : '알 수 없는 아동';
+        };
+
+        const getAttentionRequiredStudents = () => {
+          clockTick.value; const today = getTodayDateString();
+          const todayCheckins = checkins.value.filter(c => c.date === today);
+          const attentionList = [];
+          
+          todayCheckins.forEach(c => {
+            if (isCautionNeeded(c)) {
+              const s = students.value.find(st => st.id === c.studentId);
+              if (s) {
+                attentionList.push({
+                  ...s,
+                  checkin: c
+                });
+              }
+            }
+          });
+          return attentionList;
+        };
+
+        const getCheckinMoodText = (checkin) => {
+          if (checkin.mood === 'custom') {
+            return `${checkin.customEmoji || '✍️'} ${checkin.customLabel || '직접 씀'}`;
+          }
+          const found = MOODS.find(m => m.id === checkin.mood);
+          return found ? `${found.emoji} ${found.label}` : '기타';
+        };
+
+        const getMoodStatistics = () => {
+          clockTick.value; const today = getTodayDateString();
+          const todayCheckins = checkins.value.filter(c => c.date === today);
+          const totalCount = todayCheckins.length || 1;
+
+          const statsMap = {};
+          
+          MOODS.forEach(m => {
+            statsMap[m.id] = { label: m.label, emoji: m.emoji, color: m.color, count: 0 };
+          });
+          statsMap['custom'] = { label: '직접 만듦', emoji: '✍️', color: '#f59e0b', count: 0 };
+
+          todayCheckins.forEach(c => {
+            if (statsMap[c.mood]) {
+              statsMap[c.mood].count++;
+            } else {
+              statsMap['custom'].count++;
+            }
+          });
+
+          return Object.keys(statsMap)
+            .map(key => {
+              const count = statsMap[key].count;
+              const percentage = Math.round((count / totalCount) * 100);
+              return {
+                moodId: key,
+                label: statsMap[key].label,
+                emoji: statsMap[key].emoji,
+                color: statsMap[key].color,
+                count: count,
+                percentage: percentage
+              };
+            })
+            .filter(stat => stat.count > 0);
+        };
+
+        const getInsightText = () => {
+          clockTick.value; const today = getTodayDateString();
+          const todayCheckins = checkins.value.filter(c => c.date === today);
+          const attentionCount = getAttentionRequiredStudents().length;
+          const averageScore = getClassAverageScore();
+
+          if (averageScore === 0) {
+            return "아직 등교한 아이들의 마음 온도 참여 데이터가 누적되지 않았습니다. 아이들이 등교 직후 기분을 터치하도록 지도해주세요.";
+          }
+
+          if (averageScore <= 45) {
+            return `오늘 ${todayCheckins.length}건의 평균은 ${averageScore}°C입니다. 평균만으로 원인을 판단하지 말고 개인 기록과 미참여 학생을 확인해주세요. 아이가 원하면 조용히 이야기를 들어주세요.`;
+          }
+
+          if (attentionCount >= 3) {
+            return `오늘 확인 권장 기준에 해당하는 기록은 ${attentionCount}건입니다. 아이들의 상황을 개별적으로 확인하고, 대화가 필요한 경우 지원 진행 상태를 남겨주세요.`;
+          }
+
+          return `오늘 ${todayCheckins.length}건의 평균은 ${averageScore}°C입니다. 높은 평균에서도 도움이 필요한 개인이 있을 수 있습니다. 확인 권장 목록과 미참여 학생을 함께 살펴주세요.`;
+        };
+
+        // ========================================================
+        // [순수 SVG 스마트 변화 추이 시각화 엔진] 연산 데이터
+        // ========================================================
+        const trendPoints = computed(() => {
+          clockTick.value;
+          if (checkins.value.length === 0) return [];
+
+          const periodDays = statsPeriod.value;
+          const target = statsTarget.value;
+          const todaySec = Date.now();
+          
+          // 1. 기간 필터링 범위 계산
+          const cutoffTime = todaySec - (periodDays * 24 * 60 * 60 * 1000);
+          let filtered = checkins.value.filter(c => c.timestamp >= cutoffTime);
+
+          // 2. 날짜별 데이터 그룹화
+          const dateMap = {};
+          // 최근 날짜 리스트 선언 (순서 유지를 위해)
+          for (let i = periodDays - 1; i >= 0; i--) {
+            const dStr = getOffsetDateString(i);
+            dateMap[dStr] = [];
+          }
+
+          // 그룹화 진행
+          filtered.forEach(c => {
+            if (dateMap[c.date] !== undefined) {
+              if (target === 'all' || c.studentId === target) {
+                dateMap[c.date].push(c);
+              }
+            }
+          });
+
+          // 3. 날짜별 값 계산 (학급 평균 혹은 개인 점수 추출)
+          const dataList = [];
+          Object.keys(dateMap).sort().forEach(date => {
+            const dayCheckins = dateMap[date];
+            if (dayCheckins.length > 0) {
+              const avgScore = Math.round(dayCheckins.reduce((sum, curr) => sum + curr.score, 0) / dayCheckins.length);
+              // 기분 대표 이모티콘 설정
+              let emoji = '';
+              if (target !== 'all') {
+                emoji = getMoodDisplayEmoji(dayCheckins[0].mood, dayCheckins[0].customEmoji);
+              } else {
+                // 전체 학급일 때는 평균 온도 이모티콘
+                emoji = avgScore >= 80 ? '🔥' : (avgScore >= 40 ? '🌤️' : '❄️');
+              }
+
+              dataList.push({
+                date: date,
+                dateLabel: date.substring(5), // MM-DD
+                score: avgScore, count: dayCheckins.length,
+                emoji: emoji,
+                message: target !== 'all' ? dayCheckins[0].message : `총 ${dayCheckins.length}명 등교 완료`
+              });
+            } else {
+              // 기록이 없는 경우 보간 처리하지 않고 공백 혹은 0으로 둘 수 있으나, 선의 자연스러움을 위해 생략 혹은 기본값
+              // 여기서는 깔끔한 추이를 위해 기록이 있는 날짜들 위주로만 배열에 정렬
+            }
+          });
+
+          // 4. SVG 평면 좌표 맵핑 연산 (가로 600, 세로 220)
+          const svgWidth = 540; // 좌측 라벨 여백 40px 제외 영역
+          const svgHeight = 180; // 상단 여백 20px, 하단 여백 20px 제외 영역
+          const startX = 40;
+          const startY = 20;
+
+          return dataList.map((d, index) => {
+            const xRatio = dataList.length > 1 ? index / (dataList.length - 1) : 0.5;
+            const x = startX + xRatio * svgWidth;
+            
+            // 온도를 상하 좌표로 맵핑 (100도 -> 상단 20px, 0도 -> 하단 200px)
+            const yRatio = d.score / 100;
+            const y = (startY + svgHeight) - (yRatio * svgHeight);
+
+            return {
+              ...d,
+              x: Math.round(x),
+              y: Math.round(y)
+            };
+          });
+        });
+
+        // SVG 추이 꺾은선 패스 문자열
+        const trendLinePath = computed(() => {
+          const pts = trendPoints.value;
+          if (pts.length === 0) return '';
+          return pts.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+        });
+
+        // SVG 그라데이션 영역 패스 문자열
+        const trendAreaPath = computed(() => {
+          const pts = trendPoints.value;
+          if (pts.length === 0) return '';
+          const linePath = trendLinePath.value;
+          const firstX = pts[0].x;
+          const lastX = pts[pts.length - 1].x;
+          const bottomY = 200; // 가이드라인 맨 밑 y축선
+          return `${linePath} L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`;
+        });
+
+        // X축 날짜 라벨을 기간에 맞게 가시적으로 듬성듬성 분배해주는 함수
+        const getSparseLabels = () => {
+          const pts = trendPoints.value;
+          if (pts.length === 0) return [];
+          if (statsPeriod.value === 7) return pts; // 일주일은 전부 표시
+          
+          // 한 달/1년 단위일 경우 4~5개 라벨만 선별 추출
+          const step = Math.ceil(pts.length / 5);
+          return pts.filter((_, idx) => idx % step === 0 || idx === pts.length - 1);
+        };
+
+        // ========================================================
+        // [📋 일일 및 누적 데이터 통합 필터링 엔진]
+        // ========================================================
+        const filteredRecords = computed(() => {
+          let records = [...checkins.value];
+
+          // 1. 기간 범위 한정 필터링
+          if (recordsScope.value === 'today') {
+            const todayStr = getTodayDateString();
+            records = records.filter(r => r.date === todayStr);
+          }
+
+          if (recordsFrom.value) records = records.filter(r => r.date >= recordsFrom.value);
+          if (recordsTo.value) records = records.filter(r => r.date <= recordsTo.value);
+          if (onlyAttention.value) records = records.filter(isCautionNeeded);
+          // 2. 특정 아동 필터링
+          if (recordsFilterStudent.value !== 'all') {
+            records = records.filter(r => r.studentId === recordsFilterStudent.value);
+          }
+
+          // 3. 한마디 키워드 포함 검색
+          const kword = recordsSearchKeyword.value.trim();
+          if (kword) {
+            records = records.filter(r => (r.message || '').includes(kword));
+          }
+
+          // 최신순으로 정렬해서 반환
+          return records.sort((a, b) => b.timestamp - a.timestamp);
+        });
+
+        const addStudent = () => {
+          if (!newStudentName.value.trim()) {
+            triggerToast("💡 추가할 학생 이름을 빈칸 없이 제대로 써주세요.");
+            return;
+          }
+
+          const newId = `st-${Date.now()}`;
+          const newStudent = {
+            id: newId,
+            name: newStudentName.value.trim(),
+            color: newStudentColor.value,
+            photo: newStudentPhoto.value || '',
+            customBgColor: '#ffffff'
+          };
+
+          if (students.value.some(st => !st.archived && st.name === newStudent.name)) { triggerToast('같은 이름이 있어요. 동명이인은 번호 등을 덧붙여 구분해주세요.'); return; }
+          students.value.push(newStudent);
+          if (!saveStudentsToLocal()) { students.value.pop(); return; }
+
+          newStudentName.value = '';
+          newStudentColor.value = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+          newStudentPhoto.value = '';
+
+          triggerToast("🎒 새로운 학생 등록 완료!");
+        };
+
+        const renameStudent = (student) => {
+          const name = prompt('수정할 이름', student.name); if (!name || !name.trim()) return;
+          const old=student.name; student.name = name.trim().slice(0, 30); if (!saveStudentsToLocal()) student.name=old;
+        };
+        const deleteStudent = (id) => {
+          const st = students.value.find(s => s.id === id); if (!st) return;
+          st.archived = !st.archived; if (!saveStudentsToLocal()) { st.archived = !st.archived; return; }
+          triggerToast(st.archived ? '명부에서 보관했습니다. 과거 기록은 유지됩니다.' : '재적 명부로 복귀했습니다.');
+        };
+        const resetDemoData = () => {
+          if (prompt('학생과 기록을 모두 지웁니다. 먼저 JSON 백업을 저장하세요. 계속하려면 초기화를 입력하세요.') !== '초기화') return;
+          const prevSt=students.value, prevCh=checkins.value; students.value = []; checkins.value = []; if (!saveStudentsToLocal() || !saveCheckinsToLocal()) { students.value=prevSt; checkins.value=prevCh; saveStudentsToLocal(); saveCheckinsToLocal(); triggerToast('초기화 저장에 실패했습니다. 백업을 확인해주세요.'); return; }
+          triggerToast('명부와 기록을 비웠습니다.');
+        };
+
+        const downloadCSV = () => {
+          const filtered = filteredRecords.value;
+          if (filtered.length === 0) {
+            triggerToast("📥 다운로드할 데이터가 검색 결과에 존재하지 않습니다.");
+            return;
+          }
+
+          const cell = value => '"' + String(value ?? '').replace(/^[=+@\-\t\r]/, "'$&").replace(/"/g, '""') + '"';
+          let csvContent = [['기록일시','이름','기분','마음온도','마음메시지','확인 권장','지원 진행','교사 메모'], ...filtered.map(c => [c.date+' '+c.timeString,getStudentName(c.studentId),getMoodDisplayLabel(c.mood,c.customLabel),c.score,c.message,isCautionNeeded(c)?'교사 확인 권장':'현재 기준 해당 없음',c.followUp || '미확인',c.teacherNote || ''])].map(row => row.map(cell).join(',')).join('\r\n');
+
+          const bom = "\uFEFF";
+          const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          
+          link.setAttribute("href", url);
+          link.setAttribute("download", `아침_마음온도계_기록조회.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link); setTimeout(() => URL.revokeObjectURL(url), 1000);
+          
+          triggerToast("📥 검색 필터링된 데이터가 엑셀 CSV로 내보내졌습니다.");
+        };
+
+        const getMoodDisplayEmoji = (mood, customEmoji) => {
+          if (mood === 'custom') return customEmoji || '✍️';
+          return MOODS.find(m => m.id === mood)?.emoji || '🌡️';
+        };
+
+        const getMoodDisplayLabel = (mood, customLabel) => {
+          if (mood === 'custom') return customLabel || '나만의 기분';
+          return MOODS.find(m => m.id === mood)?.label || '평온해요';
+        };
+
+        const showAllMessages = ref(false), recordsFrom = ref(''), recordsTo = ref(''), onlyAttention = ref(false);
+        const lastBackup = ref(''); try { lastBackup.value = localStorage.getItem('school_thermometer_last_backup') || ''; } catch {};
+        let completionTimer, lastActivity = Date.now();
+        const scrollToQuestion = () => nextTick(() => {
+          const el = document.querySelector('main h3, main h2');
+          if (el) { el.setAttribute('tabindex','-1'); el.focus({preventScroll:true}); }
+          window.scrollTo({top:0, behavior:'instant'});
+        });
+        watch([wizardStep, selectedStudent, currentMode, teacherTab], scrollToQuestion);
+        watch(confirmModal, () => { if (confirmModal.value.show) nextTick(() => document.querySelector('[aria-label="선생님 비밀번호"]')?.focus()); }, {deep:true});
+        const updateFollowUp = (record, value) => { const old = record.followUp; record.followUp = value; if (!saveCheckinsToLocal()) record.followUp = old; };
+        const updateNote = (record, value) => { const old = record.teacherNote; record.teacherNote = value.slice(0,1000); if (!saveCheckinsToLocal()) record.teacherNote = old; };
+        const backupData = () => {
+          const blob = new Blob([JSON.stringify({version:1, exportedAt:new Date().toISOString(), students:students.value, checkins:checkins.value},null,2)],{type:'application/json'});
+          const url=URL.createObjectURL(blob), a=document.createElement('a'); a.href=url; a.download='마음온도계_백업_'+getTodayDateString()+'.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+          lastBackup.value=new Date().toLocaleString('ko-KR'); localStorage.setItem('school_thermometer_last_backup',lastBackup.value);
+        };
+        const restoreData = async event => {
+          const file=event.target.files[0]; if(!file) return;
+          try {
+            if(file.size>5*1024*1024) throw Error('백업은 5MB 이하여야 합니다.');
+            const data=JSON.parse(await file.text());
+            if(data.version!==1 || !Array.isArray(data.students) || !Array.isArray(data.checkins)) throw Error('지원하지 않는 백업 형식입니다.');
+            const ids=new Set();
+            for(const st of data.students) { if(typeof st.id!=='string' || ids.has(st.id) || typeof st.name!=='string' || !st.name.trim() || (st.photo && !/^data:image\/(jpeg|png|webp);base64,/.test(st.photo))) throw Error('학생 데이터 형식이 올바르지 않습니다.'); ids.add(st.id); }
+            for(const c of data.checkins) { if(!ids.has(c.studentId) || !Number.isFinite(c.score) || c.score<10 || c.score>100 || !/^\d{4}-\d{2}-\d{2}$/.test(c.date) || !Number.isFinite(c.timestamp) || typeof c.mood!=='string' || (c.message!=null && typeof c.message!=='string')) throw Error('기록 데이터 형식이 올바르지 않습니다.'); }
+            if(!confirm('현재 명부와 기록을 백업 내용으로 교체합니다. 현재 데이터를 먼저 백업했나요?')) return;
+            const oldSt=localStorage.getItem('school_thermometer_students'), oldCh=localStorage.getItem('school_thermometer_checkins');
+            try { localStorage.setItem('school_thermometer_students',JSON.stringify(data.students)); localStorage.setItem('school_thermometer_checkins',JSON.stringify(data.checkins)); }
+            catch(error) { if(oldSt!==null) localStorage.setItem('school_thermometer_students',oldSt); else localStorage.removeItem('school_thermometer_students'); if(oldCh!==null) localStorage.setItem('school_thermometer_checkins',oldCh); else localStorage.removeItem('school_thermometer_checkins'); throw error; }
+            students.value=data.students; checkins.value=data.checkins; syncStatus.value='local'; triggerToast('백업을 복원했습니다.');
+          } catch(error) { triggerToast('복원 실패: '+error.message); }
+          finally { event.target.value=''; }
+        };
+        onMounted(() => {
+          loadLocalData();
+          for (const event of ['pointerdown','keydown','input']) document.addEventListener(event, () => { lastActivity=Date.now(); }, {passive:true});
+          setInterval(() => {
+            const limit=currentMode.value==='teacher'?180000:90000;
+            if(Date.now()-lastActivity>limit && (selectedStudent.value || currentMode.value==='teacher' || confirmModal.value.show)) { closeConfirm(); triggerToast('사용 시간이 지나 처음 화면으로 돌아왔어요.'); lastActivity=Date.now(); }
+          },1000);
+        });
+
+        return {
+          showAllMessages, recordsFrom, recordsTo, onlyAttention, lastBackup, backupData, restoreData, renameStudent, updateFollowUp, updateNote,
+          syncStatus,
+          students,
+          checkins,
+          currentMode,
+          selectedStudent,
+          wizardStep,
+          wizardMood,
+          wizardScore,
+          wizardMessage,
+          recentSubmittedCheckin,
+          showCustomMoodForm,
+          customMoodLabel,
+          customMoodEmoji,
+          isCustomMoodSubmitted,
+          isRecording,
+          teacherTab,
+          newStudentName,
+          newStudentColor,
+          newStudentPhoto,
+          toastMessage,
+          confirmModal,
+          thermometerRef,
+          teacherPassword,
+          tempNewPassword,
+          statsTarget,
+          statsPeriod,
+          activeChartPoint,
+          recordsScope,
+          recordsFilterStudent,
+          recordsSearchKeyword,
+          
+          MOODS,
+          CUSTOM_EMOJI_POOL,
+          PRESET_MESSAGES,
+          AVATAR_COLORS,
+          PASTEL_CARD_COLORS,
+          
+          hasSubmittedToday,
+          getSubmittedEmojiToday,
+          getTodayCheckinsCount,
+          isCautionNeeded,
+          selectStudent,
+          nextStep,
+          prevStep,
+          selectMood,
+          openCustomMoodForm,
+          closeCustomMoodForm,
+          submitCustomMood,
+          getSelectedMoodEmoji,
+          getSelectedMoodLabel,
+          handleThermometerInteraction,
+          handleThermometerDrag,
+          getRedLiquidHeightPercentage,
+          toggleSpeechRecognition,
+          submitCheckin,
+          handlePhotoUpload,
+          addStudent,
+          deleteStudent,
+          resetDemoData,
+          getSortedCheckins,
+          getStudentName,
+          getCheckinMoodText,
+          downloadCSV,
+          changeTeacherTab,
+          enterTeacherDashboard,
+          getInsightText,
+          goHome,
+          getThermometerColor,
+          closeConfirm,
+          getAttentionRequiredStudents,
+          getMoodStatistics,
+          getClassAverageScore,
+          getMoodDisplayEmoji,
+          getMoodDisplayLabel,
+          changeStudentCardColor,
+          changeTeacherPassword,
+          
+          // 신규 추이 분석 연산 바인딩
+          trendPoints,
+          trendLinePath,
+          trendAreaPath,
+          getSparseLabels,
+          filteredRecords
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
