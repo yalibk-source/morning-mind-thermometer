@@ -90,13 +90,14 @@
       </div>
     </transition>
 
-    <section v-if="isDemo" aria-label="데모 모드 안내" class="mb-6 rounded-3xl border-2 border-sky-200 bg-sky-50 p-5 space-y-3">
+    <section v-if="DEMO_ENABLED && isDemo" aria-label="데모 모드 안내" class="mb-6 rounded-3xl border-2 border-sky-200 bg-sky-50 p-5 space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-3"><div><p class="font-black text-sky-900">✨ 데모 체험 중 · 모두 가상 학생과 예시 기록입니다</p><p class="mt-1 text-sm text-sky-900">얼굴은 가상 인물 그림입니다. 변경 사항은 이 화면에서만 유지되며 새로고침하면 초기화됩니다.</p></div><button @click="exitDemo" class="rounded-xl border border-sky-300 bg-white px-4 py-3 font-bold text-sm">실제 학급 사용으로 전환</button></div>
       <div class="flex flex-wrap gap-2"><button @click="goHome" class="rounded-xl bg-white border border-sky-200 px-4 py-2 font-bold text-sm">① 학생 입력 체험</button><button @click="openDemoTeacher" class="rounded-xl bg-sky-800 text-white px-4 py-2 font-bold text-sm">② 교사 화면 체험</button><button @click="startDemo" class="rounded-xl bg-white border border-sky-200 px-4 py-2 font-bold text-sm">데모 새로 시작</button></div>
       <p class="text-xs text-sky-900">‘기록 완료’가 없는 친구를 눌러 입력해보세요. 교사 화면에서는 3주간의 추이, 오늘 기록, 확인 권장 사례를 볼 수 있습니다.</p>
     </section>
-    <div v-else-if="currentMode === 'student' && !selectedStudent" class="mb-5 text-right"><button @click="startDemo" class="rounded-xl border border-sky-200 bg-white px-4 py-2 text-sm font-bold text-sky-900">✨ 가상 학급 데모 체험</button></div>
+    <div v-else-if="DEMO_ENABLED && currentMode === 'student' && !selectedStudent" class="mb-5 text-right"><button @click="startDemo" class="rounded-xl border border-sky-200 bg-white px-4 py-2 text-sm font-bold text-sky-900">✨ 가상 학급 데모 체험</button></div>
 
+    <p v-if="!DEMO_ENABLED && currentMode === 'student'" class="mb-4 text-right text-xs font-bold text-slate-500">실제 학급용</p>
     <!-- [학생 모드] 헤더 영역 -->
     <header class="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4" v-if="currentMode === 'student'">
       <div class="flex items-center space-x-4">
@@ -889,6 +890,8 @@
     const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
     // 기본 비밀번호 초기값 상수
+    const DEMO_ENABLED = true;
+    const storageKey = name => (DEMO_ENABLED ? 'school_thermometer_' : 'school_thermometer_classroom_') + name;
     const DEFAULT_PASSWORD = '3333';
 
     // 기본 학생 샘플 데이터
@@ -1043,15 +1046,15 @@
         const loadLocalData = () => {
           try {
             // 비밀번호 로드
-            const savedPw = localStorage.getItem('school_thermometer_password');
+            const savedPw = localStorage.getItem(storageKey('password'));
             if (savedPw) {
               teacherPassword.value = savedPw;
             } else {
               teacherPassword.value = DEFAULT_PASSWORD;
             }
 
-            const localSt = localStorage.getItem('school_thermometer_students');
-            const localCh = localStorage.getItem('school_thermometer_checkins');
+            const localSt = localStorage.getItem(storageKey('students'));
+            const localCh = localStorage.getItem(storageKey('checkins'));
             
             if (localSt) {
               students.value = JSON.parse(localSt);
@@ -1060,7 +1063,7 @@
               });
             } else {
               students.value = [];
-              localStorage.setItem('school_thermometer_students', JSON.stringify(students.value));
+              localStorage.setItem(storageKey('students'), JSON.stringify(students.value));
             }
 
             if (localCh) {
@@ -1068,7 +1071,7 @@
             } else {
               // 배포본은 실제 입력 전까지 기록을 생성하지 않습니다.
               checkins.value = [];
-              localStorage.setItem('school_thermometer_checkins', JSON.stringify(checkins.value));
+              localStorage.setItem(storageKey('checkins'), JSON.stringify(checkins.value));
             }
           } catch (e) {
             console.error("Localstorage load error:", e);
@@ -1079,7 +1082,7 @@
         const saveStudentsToLocal = () => {
           if (isDemo.value) return true;
           try {
-            localStorage.setItem('school_thermometer_students', JSON.stringify(students.value));
+            localStorage.setItem(storageKey('students'), JSON.stringify(students.value));
             syncStatus.value = 'local'; return true;
           } catch (e) {
             syncStatus.value = "error"; triggerToast("🚨 저장 공간이 부족합니다. 고화질 사진을 정리해주시거나 다시 시도해주세요."); return false;
@@ -1089,7 +1092,7 @@
         const saveCheckinsToLocal = () => {
           if (isDemo.value) return true;
           try {
-            localStorage.setItem('school_thermometer_checkins', JSON.stringify(checkins.value));
+            localStorage.setItem(storageKey('checkins'), JSON.stringify(checkins.value));
             syncStatus.value = 'local'; return true;
           } catch (e) {
             syncStatus.value = 'error';
@@ -1115,7 +1118,7 @@
             return;
           }
           if (rawPw.length < 4) { triggerToast('비밀번호는 4자 이상으로 입력해주세요.'); return; }
-          try { if (!isDemo.value) localStorage.setItem('school_thermometer_password', rawPw); } catch { triggerToast('비밀번호를 저장하지 못했습니다.'); return; }
+          try { if (!isDemo.value) localStorage.setItem(storageKey('password'), rawPw); } catch { triggerToast('비밀번호를 저장하지 못했습니다.'); return; }
           teacherPassword.value = rawPw;
           tempNewPassword.value = '';
           triggerToast("🔑 선생님 비밀번호가 성공적으로 변경되었습니다!");
@@ -1832,7 +1835,7 @@
         };
 
         const showAllMessages = ref(false), recordsFrom = ref(''), recordsTo = ref(''), onlyAttention = ref(false);
-        const lastBackup = ref(''); try { lastBackup.value = localStorage.getItem('school_thermometer_last_backup') || ''; } catch {};
+        const lastBackup = ref(''); try { lastBackup.value = localStorage.getItem(storageKey('last_backup')) || ''; } catch {};
         let completionTimer, lastActivity = Date.now();
         const scrollToQuestion = () => nextTick(() => {
           const el = document.querySelector('main h3, main h2');
@@ -1879,7 +1882,7 @@
         const backupData = () => {
           const blob = new Blob([JSON.stringify({version:1, kind:isDemo.value ? 'demo' : 'classroom', exportedAt:new Date().toISOString(), students:students.value, checkins:checkins.value},null,2)],{type:'application/json'});
           const url=URL.createObjectURL(blob), a=document.createElement('a'); a.href=url; a.download='마음온도계_백업_'+getTodayDateString()+'.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
-          lastBackup.value=new Date().toLocaleString('ko-KR'); if (!isDemo.value) localStorage.setItem('school_thermometer_last_backup',lastBackup.value);
+          lastBackup.value=new Date().toLocaleString('ko-KR'); if (!isDemo.value) localStorage.setItem(storageKey('last_backup'),lastBackup.value);
         };
         const restoreData = async event => {
           const file=event.target.files[0]; if(!file) return;
@@ -1893,20 +1896,21 @@
             for(const c of data.checkins) { if(!ids.has(c.studentId) || !Number.isFinite(c.score) || c.score<10 || c.score>100 || !/^\d{4}-\d{2}-\d{2}$/.test(c.date) || !Number.isFinite(c.timestamp) || typeof c.mood!=='string' || (c.message!=null && typeof c.message!=='string')) throw Error('기록 데이터 형식이 올바르지 않습니다.'); }
             if(!confirm('현재 명부와 기록을 백업 내용으로 교체합니다. 현재 데이터를 먼저 백업했나요?')) return;
             if(isDemo.value) { students.value=data.students; checkins.value=data.checkins; triggerToast('데모 화면에만 복원했습니다. 실제 학급은 변경되지 않습니다.'); return; }
-            const oldSt=localStorage.getItem('school_thermometer_students'), oldCh=localStorage.getItem('school_thermometer_checkins');
-            try { localStorage.setItem('school_thermometer_students',JSON.stringify(data.students)); localStorage.setItem('school_thermometer_checkins',JSON.stringify(data.checkins)); }
-            catch(error) { if(oldSt!==null) localStorage.setItem('school_thermometer_students',oldSt); else localStorage.removeItem('school_thermometer_students'); if(oldCh!==null) localStorage.setItem('school_thermometer_checkins',oldCh); else localStorage.removeItem('school_thermometer_checkins'); throw error; }
+            const oldSt=localStorage.getItem(storageKey('students')), oldCh=localStorage.getItem(storageKey('checkins'));
+            try { localStorage.setItem(storageKey('students'),JSON.stringify(data.students)); localStorage.setItem(storageKey('checkins'),JSON.stringify(data.checkins)); }
+            catch(error) { if(oldSt!==null) localStorage.setItem(storageKey('students'),oldSt); else localStorage.removeItem(storageKey('students')); if(oldCh!==null) localStorage.setItem(storageKey('checkins'),oldCh); else localStorage.removeItem(storageKey('checkins')); throw error; }
             students.value=data.students; checkins.value=data.checkins; syncStatus.value='local'; triggerToast('백업을 복원했습니다.');
           } catch(error) { triggerToast('복원 실패: '+error.message); }
           finally { event.target.value=''; }
         };
-        const rememberMode = mode => { try { localStorage.setItem('school_thermometer_mode', mode); } catch {} };
+        const rememberMode = mode => { try { localStorage.setItem(storageKey('mode'), mode); } catch {} };
         const resetViewState = () => {
           closeConfirm(); teacherTab.value='dashboard'; statsTarget.value='all'; statsPeriod.value=7; activeChartPoint.value=null;
           recordsScope.value='today'; recordsFilterStudent.value='all'; recordsSearchKeyword.value=''; recordsFrom.value=''; recordsTo.value=''; onlyAttention.value=false;
           newStudentName.value=''; newStudentPhoto.value=''; tempNewPassword.value=''; lastActivity=Date.now();
         };
         const startDemo = () => {
+          if (!DEMO_ENABLED) return;
           resetViewState(); isDemo.value=true; teacherPassword.value=DEFAULT_PASSWORD; lastBackup.value=''; syncStatus.value='local';
           const names=['김하늘','이서준','박지우','최도윤','정다은','강민재','조서아','윤하준'];
           students.value=names.map((name,i)=>({id:'demo-'+(i+1),name,color:AVATAR_COLORS[i],photo:'assets/demo-0'+(i+1)+'.svg',customBgColor:'#ffffff'}));
@@ -1927,15 +1931,16 @@
         const exitDemo = () => {
           if(!confirm('데모 체험 내용은 사라지고 이 기기의 실제 학급으로 전환합니다. 실제 명부와 기록은 그대로 유지됩니다.')) return;
           resetViewState(); isDemo.value=false; loadLocalData(); rememberMode('real');
-          try { lastBackup.value=localStorage.getItem('school_thermometer_last_backup') || ''; } catch { lastBackup.value=''; }
+          try { lastBackup.value=localStorage.getItem(storageKey('last_backup')) || ''; } catch { lastBackup.value=''; }
           triggerToast('실제 학급 모드입니다. 가상 학생은 포함되지 않습니다.');
         };
-        const openDemoTeacher = () => { if(!isDemo.value) return; resetViewState(); currentMode.value='teacher'; };
+        const openDemoTeacher = () => { if(!DEMO_ENABLED || !isDemo.value) return; resetViewState(); currentMode.value='teacher'; };
         onMounted(() => {
-          try {
-            const realStudents=JSON.parse(localStorage.getItem('school_thermometer_students') || '[]');
-            const realCheckins=JSON.parse(localStorage.getItem('school_thermometer_checkins') || '[]');
-            const preference=localStorage.getItem('school_thermometer_mode');
+          if (!DEMO_ENABLED) loadLocalData();
+          else try {
+            const realStudents=JSON.parse(localStorage.getItem(storageKey('students')) || '[]');
+            const realCheckins=JSON.parse(localStorage.getItem(storageKey('checkins')) || '[]');
+            const preference=localStorage.getItem(storageKey('mode'));
             if(preference==='demo') startDemo(); else if(preference==='real' || realStudents.length || realCheckins.length) loadLocalData(); else startDemo();
           } catch { loadLocalData(); }
           for (const event of ['pointerdown','keydown','input']) document.addEventListener(event, () => { lastActivity=Date.now(); }, {passive:true});
@@ -1950,7 +1955,7 @@
           dashboardCheckins, allTodayChecked, someTodayChecked, setAllTodayChecked,
           isTeacherChecked, updateTeacherChecked,
           pendingDeleteStudent, requestDeleteStudent, confirmDeleteStudent, restoreStudent, recordingTarget,
-          isDemo, startDemo, exitDemo, openDemoTeacher,
+          DEMO_ENABLED, isDemo, startDemo, exitDemo, openDemoTeacher,
           showAllMessages, recordsFrom, recordsTo, onlyAttention, lastBackup, backupData, restoreData, renameStudent, updateFollowUp, updateNote,
           syncStatus,
           students,

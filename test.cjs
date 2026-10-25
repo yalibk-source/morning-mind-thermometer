@@ -6,14 +6,14 @@ const template=html.slice(html.indexOf('<div id="app"'),html.lastIndexOf('<scrip
 const errors=[]; compile(template,{onError:e=>errors.push(e.message+' line '+e.loc.start.line)});assert.deepEqual(errors,[],'Vue template compiles');
 const script=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)[1];
 new vm.Script(script);
-function boot(initial={}, realMode=true, speechClass=null) {
+function boot(initial={}, realMode=true, speechClass=null, demoEnabled=true) {
   const storage=new Map(Object.entries({...realMode ? {school_thermometer_mode:'real'} : {},...initial})), intervals=[], timers=[]; let app, fail=false;
   const ctx={ Vue:{ref:value=>({value}),computed:fn=>({get value(){return fn();}}),watch:()=>{},nextTick:()=>{},onMounted:fn=>fn(),createApp:options=>({mount:()=>{app=options.setup();}})},
     localStorage:{getItem:key=>storage.get(key)??null,setItem:(key,value)=>{if(fail)throw Error('quota');storage.set(key,value);},removeItem:key=>storage.delete(key)},
     window:{confirm:()=>true,SpeechRecognition:speechClass},confirm:()=>true,prompt:()=>null,document:{addEventListener:()=>{}},console,Date,Set,Blob,URL,
     setInterval:(fn,delay)=>intervals.push({fn,delay}),setTimeout:(fn,delay)=>{timers.push({fn,delay});return timers.length;},clearTimeout:()=>{}
   };
-  vm.runInNewContext(script,ctx); return {app,storage,timers,intervals,setFail:()=>{fail=true;}};
+  vm.runInNewContext(demoEnabled ? script : script.replace('const DEMO_ENABLED = true;','const DEMO_ENABLED = false;'),ctx); return {app,storage,timers,intervals,setFail:()=>{fail=true;}};
 }
 const env=boot(), a=env.app;
 assert.equal(a.students.value.length,0); assert.equal(a.checkins.value.length,0);
@@ -71,3 +71,14 @@ async function testRestore() {
 }
 testRestore().catch(error=>{console.error(error);process.exitCode=1;});
 console.log('PASS: blank setup, required emotion, step navigation, save, duplicate protection, auto return, filters, follow-up persistence, archive/restore, failed-save rollback');
+
+const classroom=boot({school_thermometer_mode:'demo', school_thermometer_students:realStudents,school_thermometer_checkins:realLogs},false,null,false);
+assert.equal(classroom.app.DEMO_ENABLED,false);assert.equal(classroom.app.isDemo.value,false);
+assert.equal(classroom.app.students.value.length,0);assert.equal(classroom.app.checkins.value.length,0);
+classroom.app.startDemo();classroom.app.openDemoTeacher();assert.equal(classroom.app.students.value.length,0);assert.equal(classroom.app.currentMode.value,'student');
+classroom.app.newStudentName.value='실제 학급 학생';classroom.app.addStudent();
+assert.equal(JSON.parse(classroom.storage.get('school_thermometer_classroom_students'))[0].name,'실제 학급 학생');
+assert.equal(classroom.storage.get('school_thermometer_students'),realStudents);
+const classroomReload=boot(Object.fromEntries(classroom.storage),false,null,false);
+assert.equal(classroomReload.app.students.value.length,1);assert.equal(classroomReload.app.isDemo.value,false);
+console.log('PASS: classroom-only blank start, blocked demo access, separate storage, persistence and reload');
