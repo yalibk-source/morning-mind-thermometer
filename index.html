@@ -864,15 +864,16 @@
         <div class="flex flex-wrap gap-3 items-end text-sm"><label>시작일 <input aria-label="조회 시작일" type="date" v-model="recordsFrom" @change="recordsScope = 'all'" class="border rounded-lg p-2"></label><label>종료일 <input aria-label="조회 종료일" type="date" v-model="recordsTo" @change="recordsScope = 'all'" class="border rounded-lg p-2"></label><label><input type="checkbox" v-model="onlyAttention"> 확인 권장 기록만</label><button @click="recordsFrom = ''; recordsTo = ''; onlyAttention = false" class="p-2 border rounded-lg">필터 초기화</button><p v-if="recordsFrom && recordsTo && recordsFrom > recordsTo" role="alert">시작일은 종료일보다 늦을 수 없습니다.</p></div>
         <!-- 일일 및 누계 데이터 테이블 -->
         <div class="overflow-x-auto rounded-2xl border border-slate-100 shadow-sm">
-          <table class="w-full text-left border-collapse text-xs">
+          <table class="w-full min-w-[900px] table-fixed text-left border-collapse text-xs">
+            <colgroup><col style="width:130px"><col style="width:78px"><col style="width:112px"><col style="width:76px"><col><col style="width:170px"></colgroup>
             <thead>
               <tr class="bg-slate-50 border-b border-slate-100 text-slate-400">
-                <th class="p-4 font-extrabold">기록 일자 및 시간</th>
-                <th class="p-4 font-extrabold">이름</th>
-                <th class="p-4 font-extrabold">선택한 기분</th>
-                <th class="p-4 font-extrabold text-center">마음 온도</th>
-                <th class="p-4 font-extrabold">선택 및 작성한 한 마디</th>
-                <th class="p-4 font-extrabold text-center">확인 권장 / 지원 진행</th>
+                <th class="px-3 py-3 font-extrabold whitespace-nowrap">기록 일자 및 시간</th>
+                <th class="px-3 py-3 font-extrabold">이름</th>
+                <th class="px-3 py-3 font-extrabold">선택한 기분</th>
+                <th class="px-3 py-3 font-extrabold text-center whitespace-nowrap">마음 온도</th>
+                <th class="px-3 py-3 font-extrabold">한 마디 / 지원 메모</th>
+                <th class="px-3 py-3 font-extrabold text-center">교사 확인</th>
               </tr>
             </thead>
             <tbody>
@@ -880,23 +881,24 @@
                 <td colspan="6" class="p-10 text-center text-slate-400 font-bold">조건에 맞는 마음 기록 데이터가 존재하지 않습니다.</td>
               </tr>
               <tr v-for="checkin in filteredRecords" :key="checkin.timestamp" class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                <td class="p-4 text-slate-400 font-bold">{{ checkin.date }} <span class="text-amber-500 font-medium ml-1">({{ checkin.timeString }})</span></td>
-                <td class="p-4 font-black text-slate-800">{{ getStudentName(checkin.studentId) }}</td>
-                <td class="p-4 flex items-center space-x-1.5">
+                <td class="px-3 py-2.5 align-middle text-slate-500 font-bold whitespace-nowrap">{{ checkin.date }} <span class="text-amber-600 font-medium ml-1">({{ checkin.timeString }})</span></td>
+                <td class="px-3 py-2.5 align-middle font-black text-slate-800"><span class="block truncate" :title="getStudentName(checkin.studentId)">{{ getStudentName(checkin.studentId) }}</span></td>
+                <td class="px-3 py-2.5 align-middle"><span class="inline-flex items-center gap-1.5 whitespace-nowrap">
                   <span>{{ getMoodDisplayEmoji(checkin.mood, checkin.customEmoji) }}</span>
                   <span class="font-bold text-slate-600">{{ getMoodDisplayLabel(checkin.mood, checkin.customLabel) }}</span>
-                </td>
-                <td class="p-4 text-center font-black" :style="{ color: getThermometerColor(checkin.score) }">
+                </span></td>
+                <td class="px-3 py-2.5 align-middle text-center font-black whitespace-nowrap" :style="{ color: getThermometerColor(checkin.score) }">
                   {{ checkin.score }}°C
                 </td>
-                <td class="p-4 text-slate-700 font-bold max-w-[280px] break-all">
-                  {{ checkin.message || '-' }}
+                <td class="px-3 py-2.5 align-middle text-slate-700 font-bold">
+                  <details><summary class="flex cursor-pointer items-center gap-2 list-none" :title="checkin.message || '한 마디와 지원 메모 펼치기'"><span class="min-w-0 flex-1 truncate">{{ checkin.message || '남긴 한 마디 없음' }}</span><span v-if="checkin.teacherNote" class="shrink-0 text-sky-800 text-[10px]">메모</span><span aria-hidden="true" class="shrink-0 text-slate-400">⌄</span></summary><div class="mt-2 space-y-2 rounded-lg bg-slate-50 p-3"><p class="whitespace-pre-wrap break-words font-medium">{{ checkin.message || '남긴 한 마디가 없습니다.' }}</p><label class="block text-xs text-slate-600">지원 메모<input :aria-label="getStudentName(checkin.studentId) + ' 지원 메모'" placeholder="필요한 지원 내용을 적어주세요" :value="checkin.teacherNote || ''" @change="updateNote(checkin, $event.target.value)" maxlength="1000" class="mt-1 block w-full rounded-lg border p-2 font-medium"></label></div></details>
                 </td>
-                <td class="p-4 text-center">
-                  <span v-if="isCautionNeeded(checkin)" class="bg-rose-100 text-rose-700 font-extrabold px-2.5 py-1 rounded-full text-[10px] animate-pulse">
-                    교사 확인 권장
+                <td class="px-3 py-2.5 align-middle text-center">
+                  <div class="flex items-center justify-center gap-2 whitespace-nowrap"><label class="inline-flex min-h-8 cursor-pointer items-center gap-1.5 font-bold"><input type="checkbox" :aria-label="getStudentName(checkin.studentId) + ' ' + checkin.date + ' 교사 확인'" :checked="isTeacherChecked(checkin)" @change="updateTeacherChecked(checkin, $event.target.checked, $event)" class="h-4 w-4 accent-emerald-600"><span :class="isTeacherChecked(checkin) ? 'text-emerald-700' : 'text-slate-500'">{{ isTeacherChecked(checkin) ? '확인함' : '확인' }}</span></label>
+                  <span v-if="isCautionNeeded(checkin)" :title="checkin.score <= 40 ? '온도 40도 이하' : '선택한 기분 확인 권장'" class="bg-rose-100 text-rose-700 font-extrabold px-2 py-1 rounded-full text-[10px]">
+                    확인 권장
                   </span>
-                  <span v-else class="text-emerald-500 font-semibold text-[10px]">현재 기준 해당 없음</span><p v-if="isCautionNeeded(checkin)" class="text-xs mt-2">{{ checkin.score <= 40 ? '온도 40도 이하' : '선택한 기분 확인 권장' }}</p><select aria-label="지원 진행 상태" :value="checkin.followUp || '미확인'" @change="updateFollowUp(checkin, $event.target.value)" class="block mt-2 p-2 border rounded-lg"><option>미확인</option><option>확인함</option><option>대화 예정</option><option>지원 완료</option></select><input aria-label="교사 지원 메모" placeholder="지원 메모" :value="checkin.teacherNote || ''" @change="updateNote(checkin, $event.target.value)" maxlength="1000" class="block mt-2 p-2 border rounded-lg">
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -1828,7 +1830,7 @@
           }
 
           const cell = value => '"' + String(value ?? '').replace(/^[=+@\-\t\r]/, "'$&").replace(/"/g, '""') + '"';
-          let csvContent = [['기록일시','이름','기분','마음온도','마음메시지','확인 권장','지원 진행','교사 메모'], ...filtered.map(c => [c.date+' '+c.timeString,getStudentName(c.studentId),getMoodDisplayLabel(c.mood,c.customLabel),c.score,c.message,isCautionNeeded(c)?'교사 확인 권장':'현재 기준 해당 없음',c.followUp || '미확인',c.teacherNote || ''])].map(row => row.map(cell).join(',')).join('\r\n');
+          let csvContent = [['기록일시','이름','기분','마음온도','마음메시지','확인 권장','교사 확인','기존 지원 진행','교사 메모'], ...filtered.map(c => [c.date+' '+c.timeString,getStudentName(c.studentId),getMoodDisplayLabel(c.mood,c.customLabel),c.score,c.message,isCautionNeeded(c)?'교사 확인 권장':'현재 기준 해당 없음',isTeacherChecked(c)?'확인함':'미확인',c.followUp || '미확인',c.teacherNote || ''])].map(row => row.map(cell).join(',')).join('\r\n');
 
           const bom = "\uFEFF";
           const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1865,6 +1867,12 @@
         watch([wizardStep, selectedStudent, currentMode, teacherTab], scrollToQuestion);
         watch(confirmModal, () => { if (confirmModal.value.show) nextTick(() => document.querySelector('[aria-label="선생님 비밀번호"]')?.focus()); }, {deep:true});
         const updateFollowUp = (record, value) => { const old = record.followUp; record.followUp = value; if (!saveCheckinsToLocal()) record.followUp = old; };
+        const isTeacherChecked = record => typeof record.teacherChecked === 'boolean' ? record.teacherChecked : ['확인함','대화 예정','지원 완료'].includes(record.followUp);
+        const updateTeacherChecked = (record, checked, event) => {
+          const old=record.teacherChecked;record.teacherChecked=Boolean(checked);
+          if(!saveCheckinsToLocal()) { record.teacherChecked=old;if(event?.target) event.target.checked=isTeacherChecked(record);return false; }
+          return true;
+        };
         const updateNote = (record, value) => { const old = record.teacherNote; record.teacherNote = value.slice(0,1000); if (!saveCheckinsToLocal()) record.teacherNote = old; };
         const backupData = () => {
           const blob = new Blob([JSON.stringify({version:1, kind:isDemo.value ? 'demo' : 'classroom', exportedAt:new Date().toISOString(), students:students.value, checkins:checkins.value},null,2)],{type:'application/json'});
@@ -1936,6 +1944,7 @@
         });
 
         return {
+          isTeacherChecked, updateTeacherChecked,
           pendingDeleteStudent, requestDeleteStudent, confirmDeleteStudent, restoreStudent, recordingTarget,
           isDemo, startDemo, exitDemo, openDemoTeacher,
           showAllMessages, recordsFrom, recordsTo, onlyAttention, lastBackup, backupData, restoreData, renameStudent, updateFollowUp, updateNote,
